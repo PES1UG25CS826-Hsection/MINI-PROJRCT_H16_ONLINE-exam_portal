@@ -6,9 +6,9 @@ Roles: **Student**, **Teacher/Examiner**, **Administrator**.
 ## Deliverables (Part-1)
 | Document | File | Standard |
 |---|---|---|
-| Software Requirements Specification | [docs/SRS.pdf](docs/SRS.pdf) | IEEE 830 / 29148 |
-| Test Plan (with 23 test cases and traceability) | [docs/Test_Plan.pdf](docs/Test_Plan.pdf) | IEEE 829 |
-| Software Architecture & Design Specification | [docs/Architecture_Design.pdf](docs/Architecture_Design.pdf) | IEEE 1016 |
+| Software Requirements Specification | [docs/SRS.pdf](SRS.pdf) | IEEE 830 / 29148 |
+| Test Plan (with 23 test cases and traceability) | [docs/Test_Plan.pdf](Test_Plan.pdf) | IEEE 829 |
+| Software Architecture & Design Specification | [docs/Architecture_Design.pdf](Architecture_Design.pdf) | IEEE 1016 |
 
 Editable Word versions are in `docs/`; UML diagrams are in `diagrams/`.
 
