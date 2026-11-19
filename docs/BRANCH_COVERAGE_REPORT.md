@@ -10,3 +10,7 @@
 The covered branches are in `ExamScoringService`. Branches in authentication, authorization, exam lifecycle, administration, and reporting remain uncovered. The Test Plan's 70% target is not met. No claim is made that the unexecuted branches are correct.
 
 Recreate the HTML/XML/CSV evidence by running `mvn verify` in `backend/`; JaCoCo output is written to `backend/target/site/jacoco/`.
+
+## Latest candidate run — 2026-11-20
+
+The auth integration candidate measured 88/284 conditional branches (31.0%) in JaCoCo after `mvn -B verify` (47 tests; 2 PostgreSQL/Testcontainers tests skipped because the Maven container lacked Docker access). The candidate is on a feature branch, not main. The table above is the earlier 2026-11-19 main baseline, and the 70% line-coverage criterion remains unmet.

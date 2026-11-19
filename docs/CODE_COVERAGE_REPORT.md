@@ -13,3 +13,7 @@
 All measured coverage comes from `ExamScoringService`; the remaining application code was not exercised by the current unit suite. The Test Plan's 70% target is not met. This report records the actual result rather than treating the target as achieved.
 
 Recreate the HTML/XML/CSV evidence by running `mvn verify` in `backend/`; JaCoCo output is written to `backend/target/site/jacoco/`.
+
+## Latest candidate run — 2026-11-20
+
+The auth integration candidate completed `mvn -B verify` with 47 tests, 0 failures, 0 errors, and 2 PostgreSQL/Testcontainers tests skipped because Docker was unavailable inside the Maven container. JaCoCo measured 177/425 lines (41.6%) and 88/284 conditional branches (31.0%). This candidate is on a feature branch, not main; the 70% line-coverage target remains unmet. The table above is the earlier 2026-11-19 main baseline.

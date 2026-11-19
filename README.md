@@ -42,7 +42,7 @@ Student accounts can be registered from the UI. Admin and teacher accounts are o
 
 ### Encrypted database backups
 
-Set `BACKUP_AGE_RECIPIENT` in `.env` to an `age` public key and run `docker compose --profile backup up -d --build`. The backup service takes an encrypted PostgreSQL custom-format dump immediately, then schedules subsequent dumps no more than 24 hours apart, keeping 30 days by default. Backups are stored in the Docker `backup_data` volume. Copy them to an independent, access-controlled storage location for protection from host or volume loss. Create and protect the corresponding age identity separately; never commit it. See [`ops/backup/README.md`](ops/backup/README.md) for restore steps. A restore drill has not yet been executed for this submission, so the 4-hour RTO is not verified.
+Set `BACKUP_AGE_RECIPIENT` in `.env` to an `age` public key and run `docker compose --profile backup up -d --build`. The backup service takes an encrypted PostgreSQL custom-format dump immediately, then schedules subsequent dumps no more than 24 hours apart, keeping 30 days by default. Backups are stored in the Docker `backup_data` volume. Copy them to an independent, access-controlled storage location for protection from host or volume loss. Create and protect the corresponding age identity separately; never commit it. See [`ops/backup/README.md`](ops/backup/README.md) for restore steps. A PostgreSQL 15 restore drill restored 13 public tables and Flyway version 2 in about 4.8 seconds on a disposable local stack. The four-hour RTO was met in that drill; the 24-hour backup cadence and an independent off-host copy still need operational evidence.
 
 ## Local development
 
@@ -57,19 +57,16 @@ CI runs the backend Maven verification and frontend production build on pushes a
 
 The current code includes student registration and login, token-based sessions, login throttling/temporary lockout, role-protected teacher/admin APIs, a reusable question bank, exam draft/publish and student-group assignment, student exam attempts with answer saving and review flags, scoring/results, teacher metrics/CSV export, an admin summary/user creation, and a responsive role-based web UI.
 
-## Validation status (2026-11-19)
+## Validation status (2026-11-20)
 
-- Backend: Maven `verify` completed; 5 scoring unit tests passed, 0 failed.
-- Frontend: Vite production build completed successfully.
-- System validation: not run. Docker was unavailable in the build environment, so PostgreSQL/Redis-backed workflows were not exercised end-to-end.
-- Backend line coverage: 1.9%; branch coverage: 2.8%. The Test Plan target of 70% is not met. Current tests cover only the scoring service.
-- The group and question-bank workflows are implemented in code but have not yet been validated end-to-end. Scheduling/timer edge cases, security tests, accessibility checks, and load/recovery targets also require further evidence.
-- The automated encrypted backup profile and restore procedure are documented, but no timed restore drill or external backup copy has been verified.
+- Backend auth-fix candidate: `mvn -B verify` passed 47 tests with 0 failures and 0 errors; 2 PostgreSQL/Testcontainers tests were skipped because the Maven container could not access Docker. JaCoCo measured 41.6% line coverage and 31.0% branch coverage; the 70% line target is not met.
+- Infrastructure: an isolated Compose stack reported PostgreSQL 15.19 and Redis healthy, applied Flyway V1–V2 on a fresh database, returned HTTP 200 from the frontend, and reported `UP` at `/actuator/health`.
+- Live API workflow on the auth-fix candidate passed teacher/student registration and login, group/member management, exam/question creation, group assignment and publishing, student visibility and attempt, answer save/submit, teacher report and CSV. A student request to teacher group management correctly returned 403.
+- Browser workflow on the form-fix candidate passed group creation and member addition, draft and question creation, assignment and publishing, a student attempt and submission, results, and the teacher report. See [`docs/PRESENTATION_GUIDE.md`](docs/PRESENTATION_GUIDE.md) and the [recorded demo](docs/demo/sprint2-demo.webm).
+- Edge 157 at 360px with axe-core reported zero WCAG 2.1 A/AA violations on the audited sign-in, teacher, group, question-bank, exam creation, student, attempt, and results screens; no horizontal overflow was found. This is a focused scan, not a full assistive-technology or browser matrix.
+- Remaining evidence: 70% coverage, latest-two Chrome/Firefox/Edge/Safari matrix, real first-time-student usability study, broader assistive-technology review, backup-cadence observation, and independent off-host backup copy. Candidate fixes and tests are on feature branches and have not been merged to main; consult the completion tracker for branch and issue status.
 
-See [`docs/UPDATED_TEST_CASES.md`](docs/UPDATED_TEST_CASES.md) and the four reports in [`docs/`](docs/) for the actual test evidence and pending validation. Reports clearly distinguish passing unit tests from system cases that have not been executed.
-
-See [`docs/DEVIATIONS.md`](docs/DEVIATIONS.md) for known scope and evidence gaps, and [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md) for the two-minute demo script. The script is not a recorded demo video.
-
+See [`docs/UPDATED_TEST_CASES.md`](docs/UPDATED_TEST_CASES.md), [`docs/DEVIATIONS.md`](docs/DEVIATIONS.md), [`docs/SYSTEM_VALIDATION_REPORT.md`](docs/SYSTEM_VALIDATION_REPORT.md), and the reports in `docs/` for detailed evidence and gaps.
 ## Project documents
 
 - [Software Requirements Specification](SRS.pdf)

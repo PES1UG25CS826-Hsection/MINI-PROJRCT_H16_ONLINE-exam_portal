@@ -75,6 +75,7 @@ An encrypted PostgreSQL backup restore drill on the separate backup feature bran
 A focused Edge 157 run at 360px used axe-core against sign-in, teacher dashboard, groups, question bank, exam creation, student dashboard, attempt, and results pages and reported zero WCAG 2.1 A/AA violations on those pages. The pages had no horizontal overflow; keyboard focus after sign-in and entering an exam was checked. This is not a full assistive-technology or browser-matrix audit. The latest Chrome, Firefox, Edge, and Safari compatibility matrix and a real-participant usability study are outstanding.
 
 [Watch the scripted demonstration video](demo/sprint2-demo.webm) (159 seconds, 1280×720, silent). It uses disposable local accounts and covers student registration, teacher group creation and membership, draft exam and question creation, assignment and publishing, a student attempt and submission, results, and the teacher report. This recording is a workflow demonstration, not a usability study. The async form and sign-out navigation corrections and keyboard-scrollable table updates are pushed to feature branches but are not merged to main; use a checkout containing those branches and the auth fix for the demonstrated version.
+
 ## 6. Likely faculty questions
 
 **Why use both PostgreSQL and Redis?** PostgreSQL stores durable portal records. Redis stores short-lived login sessions and throttling state.
