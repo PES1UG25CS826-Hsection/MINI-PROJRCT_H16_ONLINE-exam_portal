@@ -4,7 +4,7 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-online_exam}
       POSTGRES_USER: ${POSTGRES_USER:-exam}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-exam}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your .env file}
     ports: ["${POSTGRES_PORT:-5432}:5432"]
     volumes: ["postgres_data:/var/lib/postgresql/data"]
     healthcheck:
@@ -27,9 +27,13 @@ services:
     environment:
       DATABASE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-online_exam}
       DATABASE_USERNAME: ${POSTGRES_USER:-exam}
-      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-exam}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your .env file}
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      DEMO_ADMIN_EMAIL: ${DEMO_ADMIN_EMAIL:-}
+      DEMO_ADMIN_PASSWORD: ${DEMO_ADMIN_PASSWORD:-}
+      DEMO_TEACHER_EMAIL: ${DEMO_TEACHER_EMAIL:-}
+      DEMO_TEACHER_PASSWORD: ${DEMO_TEACHER_PASSWORD:-}
     depends_on:
       db: { condition: service_healthy }
       redis: { condition: service_healthy }
