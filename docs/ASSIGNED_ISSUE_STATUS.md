@@ -6,8 +6,8 @@
 
 | Issue | Summary | Evidence in this branch | Remaining before issue can be claimed complete |
 |---|---|---|---|
-| #48 | Project scaffold | Spring Boot, React/Vite, Compose, env sample, CI, run instructions. | Merge/push PR and verify clean Compose startup. |
-| #49 | Schema/migrations | Flyway V1 baseline and V2 exam workflow migration. | Run clean migration against PostgreSQL 15 and validate schema. |
+| #48 | Project scaffold | Spring Boot, React/Vite, Compose, env sample, CI, run instructions; delivered in merged PRs #53 and #57. | Verify clean Compose startup and service health. |
+| #49 | Schema/migrations | Flyway V1 baseline and V2 exam workflow migration; delivered in merged PRs #53 and #57. | Run clean migration against PostgreSQL 15 and validate schema. |
 | #39 | Documentation/demo | README, deviations list, two-minute script. | Record and link actual demo video. |
 | #38 | Accessibility | Skip link, focus-visible styles, labelled form controls, responsive styles. | Automated scan, full keyboard review, documented 4.5:1 contrast audit. |
 | #36 | Daily backup/restore | Encrypted daily backup profile, retention, restore script and instructions. | Configure external storage, run backup and timed restore drill, record proof. |
@@ -20,6 +20,6 @@
 | #10 | Group assignment | Group/membership schema, teacher/admin management API/UI, draft exam assignment, and student list/start eligibility checks. | Run group visibility and direct-start rejection tests against PostgreSQL 15. |
 | #9 | Question selection/negative marks | Reusable bank questions can be selected for drafts; negative marking is persisted and applied. | Add end-to-end scoring validation against PostgreSQL 15. |
 | #8 | Question bank CRUD | Teacher UI/API supports create, list, edit, delete, and ownership/in-use protections. | Exercise CRUD and rejection cases against PostgreSQL 15. |
-| #7 | Teacher exam creation | Draft exam fields and validation for dates, duration, marks. | Add persisted workflow tests and validate all acceptance cases. |
+| #7 | Teacher exam creation | Draft exam fields and validation for dates, duration, and marks. `ExamControllerTest` checks request constraints, rejects invalid windows/marks before writes, and verifies persisted draft fields plus the audit row in H2 PostgreSQL compatibility mode. | PostgreSQL 15 migration/startup and browser-level create flow remain unverified locally. |
 
-The code is on local branch `se/deliverables`, based on the open scaffold PR's commit. No issue was closed and no completion claim was sent to GitHub. Reports under `docs/` preserve actual pass/fail/block status.
+PR #53 (TASK-01/TASK-02) and PR #57 (workflow and deliverables) were merged to `main` on 2026-11-19. GitHub Actions backend and frontend checks passed on the merge commit. Assigned issues remain open until their remaining evidence above is recorded; this report does not claim that unresolved verification work is complete.
