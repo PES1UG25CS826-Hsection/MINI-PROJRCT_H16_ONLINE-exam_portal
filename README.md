@@ -16,6 +16,12 @@ A role-based online exam portal built with React, Spring Boot, PostgreSQL, and R
 - The [project board](https://github.com/users/PES1UG25CS826-Hsection/projects/1) tracks sprint work.
 - Each assigned item should be submitted through a pull request linked to its issue.
 
+## Planning highlights
+
+- The Phase 1 documents define 21 functional, 10 non-functional, and 10 security requirements.
+- The submitted architecture includes use case, component, and sequence diagrams.
+- The Test Plan provides the requirement-to-test-case traceability baseline; Phase 3 updates are in `docs/`.
+
 ## Technology
 
 - Java 17 and Spring Boot 3
