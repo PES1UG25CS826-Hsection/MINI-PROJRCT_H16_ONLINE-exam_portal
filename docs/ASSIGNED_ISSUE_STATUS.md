@@ -19,7 +19,7 @@
 | #30 | Teacher reports | Average/high/low/pass percentage and escaped CSV for owned exams. | Add ownership, aggregation, and CSV integration tests. |
 | #10 | Group assignment | Group/membership schema, teacher/admin management API/UI, draft exam assignment, and student list/start eligibility checks. | Run group visibility and direct-start rejection tests against PostgreSQL 15. |
 | #9 | Question selection/negative marks | Reusable bank questions can be selected for drafts; negative marking is persisted and applied. | Add end-to-end scoring validation against PostgreSQL 15. |
-| #8 | Question bank CRUD | Teacher UI/API supports create, list, edit, delete, and ownership/in-use protections. | Exercise CRUD and rejection cases against PostgreSQL 15. |
+| #8 | Question bank CRUD | Teacher UI/API supports create, list, edit, delete, and ownership/in-use protections. `QuestionBankControllerTest` covers all three types, list filtering, update/delete paths, ownership/use rejection, and validation errors. | PostgreSQL 15 CRUD/migration integration and browser workflow remain unverified locally. |
 | #7 | Teacher exam creation | Draft exam fields and validation for dates, duration, marks. | Add persisted workflow tests and validate all acceptance cases. |
 
 The code is on local branch `se/deliverables`, based on the open scaffold PR's commit. No issue was closed and no completion claim was sent to GitHub. Reports under `docs/` preserve actual pass/fail/block status.
