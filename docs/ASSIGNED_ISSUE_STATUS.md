@@ -16,7 +16,7 @@
 | #33 | Usability | First-use flows are present in the UI. | Run and record the required five-person study; 90%/3-minute target is unverified. |
 | #32 | Per-attempt randomization | Stable deterministic question and option order per attempt when enabled. | Add workflow/integration tests proving stable order and answer mapping. |
 | #31 | Admin summary | Admin-only persisted totals for users, exams, attempts. | Add authorization and empty-database integration tests. |
-| #30 | Teacher reports | Average/high/low/pass percentage and escaped CSV for owned exams. | Add ownership, aggregation, and CSV integration tests. |
+| #30 | Teacher reports | Average/high/low/pass percentage and escaped CSV for owned exams. `ReportControllerTest` covers metrics, zero-result defaults, and teacher ownership; `ExamReportCsvTest` verifies quoting/escaping and rejects access to another teacher's exam. | PostgreSQL 15 aggregate and CSV integration tests remain unverified because the local Docker engine is unavailable. |
 | #10 | Group assignment | Group/membership schema, teacher/admin management API/UI, draft exam assignment, and student list/start eligibility checks. | Run group visibility and direct-start rejection tests against PostgreSQL 15. |
 | #9 | Question selection/negative marks | Reusable bank questions can be selected for drafts; negative marking is persisted and applied. | Add end-to-end scoring validation against PostgreSQL 15. |
 | #8 | Question bank CRUD | Teacher UI/API supports create, list, edit, delete, and ownership/in-use protections. | Exercise CRUD and rejection cases against PostgreSQL 15. |
