@@ -1,15 +1,36 @@
 # Online Exam Portal
 
-A web portal for creating, conducting, and evaluating online exams. The system is intended for students, teachers/examiners, and administrators.
+A role-based online exam portal built with React, Spring Boot, PostgreSQL, and Redis. This repository is an active mini-project submission; see the validation status below before treating it as production-ready.
 
-## Stack
+## Team
 
-- **API:** Java 21, Spring Boot 3, Spring Data JPA, Spring Actuator
-- **Web:** React and Vite single-page application
-- **Data:** PostgreSQL 15 with versioned Flyway migrations; Redis 7
-- **Local orchestration:** Docker Compose
+| Name | SRN |
+|---|---|
+| Manoj A C | PES1UG25CS826 |
+| Manoj Gaonkar | PES1UG25CS827 |
+| Ruthik | PES1UG25CS837 |
 
-## Run locally
+## Project backlog
+
+- Functional, non-functional, and security requirements are tracked as [GitHub issues](../../issues).
+- The [project board](https://github.com/users/PES1UG25CS826-Hsection/projects/1) tracks sprint work.
+- Each assigned item should be submitted through a pull request linked to its issue.
+
+## Planning highlights
+
+- The Phase 1 documents define 21 functional, 10 non-functional, and 10 security requirements.
+- The submitted architecture includes use case, component, and sequence diagrams.
+- The Test Plan provides the requirement-to-test-case traceability baseline; Phase 3 updates are in `docs/`.
+
+## Technology
+
+- Java 17 and Spring Boot 3
+- React 19 and Vite
+- PostgreSQL 15 with Flyway migrations
+- Redis 7 for bearer sessions and login rate limiting
+- Docker Compose for local services
+
+## Run with Docker Compose
 
 1. Install Docker Desktop with Compose enabled.
 2. Copy `.env.example` to `.env`. Change `POSTGRES_PASSWORD` and `TOKEN_SECRET` before sharing this environment.
@@ -19,30 +40,44 @@ A web portal for creating, conducting, and evaluating online exams. The system i
 
 The API runs Flyway migrations at startup. Hibernate is set to `ddl-auto: validate`, so schema changes belong in a new migration under `backend/src/main/resources/db/migration/` rather than automatic table generation. Set `TOKEN_SECRET` to a unique random value of at least 32 characters before sharing or deploying the service; the built-in value is only for local development.
 
-For development without Compose, run the API from `backend/` with `mvn spring-boot:run` and the web app from `frontend/` with `npm install && npm run dev`. Set `DATABASE_URL`, `DATABASE_USERNAME`, `DATABASE_PASSWORD`, `REDIS_HOST`, and `REDIS_PORT` as needed.
+### Encrypted database backups
 
-## Initial database model
+Set `BACKUP_AGE_RECIPIENT` in `.env` to an `age` public key and run `docker compose --profile backup up -d --build`. The backup service takes an encrypted PostgreSQL custom-format dump immediately, then schedules subsequent dumps no more than 24 hours apart, keeping 30 days by default. Backups are stored in the Docker `backup_data` volume. Copy them to an independent, access-controlled storage location for protection from host or volume loss. Create and protect the corresponding age identity separately; never commit it. See [`ops/backup/README.md`](ops/backup/README.md) for restore steps. A restore drill has not yet been executed for this submission, so the 4-hour RTO is not verified.
 
-`V1__initial_schema.sql` creates users, questions, exams, exam-question assignments, attempts, saved attempt answers, results, and an audit log. Identifiers are UUIDs, timestamps use `TIMESTAMPTZ`, structured answer data uses JSONB, and foreign keys and checks protect core relationships and state values. The migration is designed to run once on an empty database; later schema changes should be additive migrations.
+## Local development
 
-| Table | Purpose |
-|---|---|
-| `users` | Student, teacher, and administrator accounts |
-| `questions` | Authored questions, options, answer key, and points |
-| `exams` / `exam_questions` | Exam settings and ordered question assignments |
-| `attempts` / `attempt_answers` | Student exam sessions and saved answers |
-| `results` | Final score and grading metadata for a submitted attempt |
-| `audit_log` | Actor, action, entity, request IP, and structured event details |
+- Backend: install JDK 17 and Maven, start PostgreSQL 15 and Redis 7, set `DATABASE_URL`, `DATABASE_USERNAME`, `DATABASE_PASSWORD`, `REDIS_HOST`, and `REDIS_PORT`, then run `mvn spring-boot:run` from `backend/`.
+- Frontend: install Node.js 22, then run `npm ci`, `npm run dev` from `frontend/`.
+- Backend checks and coverage: run `mvn verify` from `backend/`. The JaCoCo HTML report is generated under `backend/target/site/jacoco/`.
+- Frontend production build: run `npm ci` and `npm run build` from `frontend/`.
+
+CI runs the backend Maven verification and frontend production build on pushes and pull requests. Database migrations are applied by Flyway at API startup; Hibernate validates the schema rather than creating tables automatically.
+
+## Current implementation
+
+The current code includes student registration and login, token-based sessions, login throttling/temporary lockout, role-protected teacher/admin APIs, a reusable question bank, exam draft/publish and student-group assignment, student exam attempts with answer saving and review flags, scoring/results, teacher metrics/CSV export, an admin summary/user creation, and a responsive role-based web UI.
+
+## Validation status (2026-11-19)
+
+- Backend: Maven `verify` completed; 5 scoring unit tests passed, 0 failed.
+- Frontend: Vite production build completed successfully.
+- System validation: not run. Docker was unavailable in the build environment, so PostgreSQL/Redis-backed workflows were not exercised end-to-end.
+- Backend line coverage: 1.9%; branch coverage: 2.8%. The Test Plan target of 70% is not met. Current tests cover only the scoring service.
+- The group and question-bank workflows are implemented in code but have not yet been validated end-to-end. Scheduling/timer edge cases, security tests, accessibility checks, and load/recovery targets also require further evidence.
+- The automated encrypted backup profile and restore procedure are documented, but no timed restore drill or external backup copy has been verified.
+
+See [`docs/UPDATED_TEST_CASES.md`](docs/UPDATED_TEST_CASES.md) and the four reports in [`docs/`](docs/) for the actual test evidence and pending validation. Reports clearly distinguish passing unit tests from system cases that have not been executed.
+
+See [`docs/DEVIATIONS.md`](docs/DEVIATIONS.md) for known scope and evidence gaps, and [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md) for the two-minute demo script. The script is not a recorded demo video.
 
 ## Project documents
 
 - [Software Requirements Specification](SRS.pdf)
 - [Test Plan](Test_Plan.pdf)
 - [Architecture and Design](Architecture_Design.pdf)
+- [Part 3 test cases and reports](docs/)
 
-The documents describe the original Part-1 requirements and design. The application scaffold is the starting point for implementing the portal workflows.
-
-## API starter endpoint
+## Database tables
 
 - `GET /api/health` returns a small service status response.
 - Spring Actuator exposes health at `/actuator/health`.
