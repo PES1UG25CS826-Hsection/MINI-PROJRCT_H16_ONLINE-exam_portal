@@ -21,6 +21,8 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+security:
+  token-secret: ${SECURITY_TOKEN_SECRET:local-development-secret-change-this-before-deploying-2026}
 management:
   endpoints:
     web:
