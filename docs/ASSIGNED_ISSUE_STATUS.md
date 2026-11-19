@@ -1,7 +1,7 @@
 # Assigned GitHub Issue Status
 
-**Repository:** `PES1UG25CS826-Hsection/MINI-PROJRCT_H16_ONLINE-exam_portal`  
-**GitHub assignee checked:** `ManojGaonkar05`  
+**Repository:** `PES1UG25CS826-Hsection/MINI-PROJRCT_H16_ONLINE-exam_portal`
+**GitHub assignee checked:** `ManojGaonkar05`
 **Checked:** 2026-11-19. All listed issues were open at the time of review.
 
 | Issue | Summary | Evidence in this branch | Remaining before issue can be claimed complete |

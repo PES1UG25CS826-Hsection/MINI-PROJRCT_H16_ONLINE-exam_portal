@@ -1,6 +1,6 @@
 # Updated Test Case Document — Online Exam Portal
 
-**Revision date:** 2026-11-19  
+**Revision date:** 2026-11-19
 **Basis:** current implementation, SRS, and Test Plan. Cases marked *not executed* are not evidence of passing behavior.
 
 | ID | Requirement | Test case / expected result | Current evidence/status |

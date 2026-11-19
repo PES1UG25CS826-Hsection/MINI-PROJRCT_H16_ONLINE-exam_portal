@@ -1,7 +1,7 @@
 # Unit Test Report — Online Exam Portal
 
-**Execution date:** 2026-11-19  
-**Command:** `mvn verify` (backend)  
+**Execution date:** 2026-11-19
+**Command:** `mvn verify` (backend)
 **Framework:** JUnit 5 / Spring Boot Test
 
 | Metric | Result |
