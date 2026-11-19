@@ -1,6 +1,6 @@
 # System Validation Report — Online Exam Portal
 
-**Assessment date:** 2026-11-19  
+**Assessment date:** 2026-11-19
 **Status:** BLOCKED / NOT EXECUTED
 
 ## Environment and scope
