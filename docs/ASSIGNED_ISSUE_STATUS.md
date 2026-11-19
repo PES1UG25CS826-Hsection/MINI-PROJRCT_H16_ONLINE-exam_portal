@@ -2,12 +2,12 @@
 
 **Repository:** `PES1UG25CS826-Hsection/MINI-PROJRCT_H16_ONLINE-exam_portal`
 **GitHub assignee checked:** `ManojGaonkar05`
-**Checked:** 2026-11-19. All listed issues were open at the time of review.
+**Checked:** 2026-11-19. GitHub currently shows 13 assigned issues open. Issues #48 and #49 were closed when the deliverables were merged through PR #57.
 
 | Issue | Summary | Evidence in this branch | Remaining before issue can be claimed complete |
 |---|---|---|---|
-| #48 | Project scaffold | Spring Boot, React/Vite, Compose, env sample, CI, run instructions. | Merge/push PR and verify clean Compose startup. |
-| #49 | Schema/migrations | Flyway V1 baseline and V2 exam workflow migration. | Run clean migration against PostgreSQL 15 and validate schema. |
+| #48 | Project scaffold (closed) | Spring Boot, React/Vite, Compose, env sample, CI, run instructions; merged through PR #57. | Verify clean Compose startup. |
+| #49 | Schema/migrations (closed) | Flyway V1 baseline and V2/V3 workflow migrations; merged through PR #57. | Run clean migration against PostgreSQL 15 and validate schema. |
 | #39 | Documentation/demo | README, deviations list, two-minute script. | Record and link actual demo video. |
 | #38 | Accessibility | Skip link, focus-visible styles, labelled form controls, responsive styles. | Automated scan, full keyboard review, documented 4.5:1 contrast audit. |
 | #36 | Daily backup/restore | Encrypted daily backup profile, retention, restore script and instructions. | Configure external storage, run backup and timed restore drill, record proof. |
@@ -22,4 +22,4 @@
 | #8 | Question bank CRUD | Teacher UI/API supports create, list, edit, delete, and ownership/in-use protections. | Exercise CRUD and rejection cases against PostgreSQL 15. |
 | #7 | Teacher exam creation | Draft exam fields and validation for dates, duration, marks. | Add persisted workflow tests and validate all acceptance cases. |
 
-The code is on local branch `se/deliverables`, based on the open scaffold PR's commit. No issue was closed and no completion claim was sent to GitHub. Reports under `docs/` preserve actual pass/fail/block status.
+The deliverables branch was merged into `main` through PR #57 on 2026-11-19. Issues #48 and #49 closed with that merge; the other 13 assigned issues listed above remain open pending the stated verification, evidence, or remaining work. Reports under `docs/` preserve actual pass/fail/block status.
