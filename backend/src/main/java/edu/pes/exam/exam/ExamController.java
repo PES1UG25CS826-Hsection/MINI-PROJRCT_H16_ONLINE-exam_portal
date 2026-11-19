@@ -26,6 +26,7 @@ import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -145,10 +146,12 @@ public class ExamController {
     @Transactional
     public Map<String,Object> start(@PathVariable UUID examId,@AuthenticationPrincipal PortalPrincipal user,HttpServletRequest request) {
         ExamRow exam=exam(examId);
-        Instant now=Instant.now();
+        Instant now=databaseNow();
         if(!exam.status().equals("PUBLISHED")) throw conflict("This exam is not available.");
         Integer eligible=jdbc.queryForObject("SELECT COUNT(*) FROM exam_groups eg JOIN group_members gm ON gm.group_id=eg.group_id WHERE eg.exam_id=? AND gm.student_id=?",Integer.class,examId,user.id());
         if(eligible==null || eligible==0) throw new ResponseStatusException(HttpStatus.NOT_FOUND,"Exam not found.");
+        List<UUID> active=jdbc.query("SELECT id FROM attempts WHERE exam_id=? AND student_id=? AND status='IN_PROGRESS' ORDER BY started_at DESC LIMIT 1",(rs,n)->rs.getObject("id",UUID.class),examId,user.id());
+        if(!active.isEmpty()) return attemptView(active.get(0),user,true);
         if(now.isBefore(exam.startsAt())) throw conflict("This exam has not started yet.");
         if(now.isAfter(exam.endsAt())) throw conflict("This exam has ended.");
         Integer used=jdbc.queryForObject("SELECT COUNT(*) FROM attempts WHERE exam_id=? AND student_id=? AND status IN ('IN_PROGRESS','SUBMITTED','TIMED_OUT')",Integer.class,examId,user.id());
@@ -166,6 +169,15 @@ public class ExamController {
         return attemptView(attemptId,user,true);
     }
 
+    @GetMapping("/attempts/active")
+    @PreAuthorize("hasRole('STUDENT')")
+    public ResponseEntity<Map<String,Object>> activeAttempt(@AuthenticationPrincipal PortalPrincipal user) {
+        List<UUID> active=jdbc.query("SELECT id FROM attempts WHERE student_id=? AND status='IN_PROGRESS' ORDER BY started_at DESC LIMIT 1",
+                (rs,n)->rs.getObject("id",UUID.class),user.id());
+        if(active.isEmpty()) return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(attemptView(active.get(0),user,true));
+    }
+
     @PutMapping("/attempts/{attemptId}/answers/{questionId}")
     @PreAuthorize("hasRole('STUDENT')")
     @Transactional
@@ -176,14 +188,14 @@ public class ExamController {
         if(rows.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND,"Attempt not found.");
         Map<String,Object> row=rows.get(0);
         if(!row.get("status").equals("IN_PROGRESS")) throw conflict("This attempt is already submitted.");
-        Instant deadline=((Instant)row.get("started")).plusSeconds(60L*(int)row.get("duration"));
-        Instant examEnd=(Instant)row.get("ends");
-        if(Instant.now().isAfter(deadline) || Instant.now().isAfter(examEnd.plusSeconds(10))) throw conflict("The answer window has ended.");
+        Instant now=databaseNow();
+        Instant deadline=AttemptDeadline.at((Instant)row.get("started"),(int)row.get("duration"),(Instant)row.get("ends"));
+        if(AttemptDeadline.answerWindowClosed(now,deadline)) throw conflict("The answer window has ended.");
         Integer linked=jdbc.queryForObject("SELECT COUNT(*) FROM attempts a JOIN exam_questions eq ON eq.exam_id=a.exam_id WHERE a.id=? AND eq.question_id=?",Integer.class,attemptId,questionId);
         if(linked==null || linked==0) throw new ResponseStatusException(HttpStatus.NOT_FOUND,"Question is not part of this attempt.");
         jdbc.update("INSERT INTO attempt_answers(attempt_id,question_id,answer,marked_for_review,saved_at) VALUES (?,?,?::jsonb,?,now()) ON CONFLICT(attempt_id,question_id) DO UPDATE SET answer=EXCLUDED.answer,marked_for_review=EXCLUDED.marked_for_review,saved_at=now()",
                 attemptId,questionId,stringify(req.answers()),req.markedForReview());
-        return Map.of("saved",true,"savedAt",Instant.now());
+        return Map.of("saved",true,"savedAt",now);
     }
 
     @PostMapping("/attempts/{attemptId}/submit")
@@ -211,12 +223,14 @@ public class ExamController {
         BigDecimal score=scoring.total(questionScores);
         BigDecimal passing=(BigDecimal)a[7];
         boolean passed=score.compareTo(passing)>=0;
-        Instant submitted=Instant.now();
-        jdbc.update("UPDATE attempts SET status='SUBMITTED',submitted_at=? WHERE id=?",Timestamp.from(submitted),attemptId);
+        Instant submitted=databaseNow();
+        Instant deadline=AttemptDeadline.at((Instant)a[2],(int)a[4],(Instant)a[5]);
+        String finalStatus=submitted.isAfter(deadline)?"TIMED_OUT":"SUBMITTED";
+        jdbc.update("UPDATE attempts SET status=?,submitted_at=? WHERE id=?",finalStatus,Timestamp.from(submitted),attemptId);
         UUID resultId=UUID.randomUUID();
         jdbc.update("INSERT INTO results(id,attempt_id,score,max_score,passed,graded_by) VALUES (?,?,?,?,?,?)",resultId,attemptId,score,max,passed,null);
         audit(user.id(),"EXAM_SUBMIT","ATTEMPT",attemptId.toString(),request.getRemoteAddr());
-        return Map.of("id",resultId,"attemptId",attemptId,"score",score,"maxScore",max,"percentage",score.multiply(BigDecimal.valueOf(100)).divide(max,2,RoundingMode.HALF_UP),"passed",passed,"submittedAt",submitted);
+        return Map.of("id",resultId,"attemptId",attemptId,"score",score,"maxScore",max,"percentage",score.multiply(BigDecimal.valueOf(100)).divide(max,2,RoundingMode.HALF_UP),"passed",passed,"status",finalStatus,"submittedAt",submitted);
     }
 
     @GetMapping("/results")
@@ -255,8 +269,11 @@ public class ExamController {
             return q;
         },attempt,examId);
         if(Boolean.TRUE.equals(a.get("randomizeQuestions"))) java.util.Collections.shuffle(questions,new java.util.Random(attempt.hashCode()));
-        Instant expires=((Instant)a.get("startedAt")).plusSeconds(60L*(int)a.get("duration"));
-        return Map.of("id",attempt,"examTitle",a.get("title"),"status",a.get("status"),"startedAt",a.get("startedAt"),"expiresAt",expires,"questions",questions);
+        Instant serverTime=databaseNow();
+        Instant expires=AttemptDeadline.at((Instant)a.get("startedAt"),(int)a.get("duration"),(Instant)a.get("endsAt"));
+        long remainingMillis=java.time.Duration.between(serverTime,expires).toMillis();
+        long remainingSeconds=Math.max(0,(remainingMillis+999)/1000);
+        return Map.of("id",attempt,"examTitle",a.get("title"),"status",a.get("status"),"startedAt",a.get("startedAt"),"expiresAt",expires,"serverTime",serverTime,"remainingSeconds",remainingSeconds,"questions",questions);
     }
 
     private ExamRow ownedExam(UUID id,PortalPrincipal user) {
@@ -290,6 +307,7 @@ public class ExamController {
     private String stringify(Object value) { try{return json.writeValueAsString(value);}catch(JsonProcessingException e){throw new IllegalArgumentException("Invalid JSON data.",e);} }
     private Set<String> parseStrings(String value) { try{return new HashSet<>(json.readValue(value,new TypeReference<List<String>>(){}));}catch(Exception e){throw new IllegalStateException("Stored answer data is invalid.",e);} }
     private Instant instant(Timestamp value){return value==null?null:value.toInstant();}
+    private Instant databaseNow(){return jdbc.queryForObject("SELECT now()",(rs,n)->rs.getTimestamp(1).toInstant());}
     private ResponseStatusException bad(String message){return new ResponseStatusException(HttpStatus.BAD_REQUEST,message);}
     private ResponseStatusException conflict(String message){return new ResponseStatusException(HttpStatus.CONFLICT,message);}
     private String csv(Object value){String s=String.valueOf(value);return "\""+s.replace("\"","\"\"")+"\"";}

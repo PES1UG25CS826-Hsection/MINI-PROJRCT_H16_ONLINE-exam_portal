@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import './style.css';
 
 const SESSION_KEY = 'online-exam-session';
+const queueKey = (id) => `online-exam-pending:${id}`;
 function loadSession() { try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); } catch { return null; } }
 
 async function api(path, options = {}, token = null) {
@@ -25,50 +26,126 @@ function App() {
   const [createdExam, setCreatedExam] = useState(null);
   const [report, setReport] = useState(null);
   const [summary, setSummary] = useState(null);
+  const [saveState, setSaveState] = useState('');
   const answerRef = useRef(answers);
   answerRef.current = answers;
+  const flushing = useRef(false);
+  const submitting = useRef(false);
   const role = session?.user?.role;
   const request = (path, options) => api(path, options, session?.token);
 
-  async function refresh() {
+  async function refresh(resumeActive = false) {
     if (!session) return;
     try {
       const [e, r] = await Promise.all([request('/api/exams'), request('/api/results')]);
       setExams(e); setResults(r);
       if (role === 'ADMIN') setSummary(await request('/api/admin/summary'));
+      if (resumeActive && role === 'STUDENT') {
+        const active = await request('/api/attempts/active');
+        if (active) installAttempt(active);
+      }
     } catch (err) { setError(err.message); }
   }
-  useEffect(() => { refresh(); }, [session?.token]);
+  useEffect(() => { refresh(true); }, [session?.token]);
+
+  function installAttempt(next) {
+    if (!next || next.status !== 'IN_PROGRESS') return;
+    let pending = {};
+    try { pending = JSON.parse(localStorage.getItem(queueKey(next.id)) || '{}'); } catch { pending = {}; }
+    const restoredAnswers = Object.fromEntries(next.questions.map((question) => {
+      const queued = pending[question.id];
+      return [question.id, {
+        answers: queued ? queued.answer : (question.answer || []),
+        markedForReview: queued ? queued.markedForReview : Boolean(question.markedForReview),
+      }];
+    }));
+    answerRef.current = restoredAnswers;
+    setAnswers(restoredAnswers);
+    setAttempt({ ...next, secondsLeft: next.remainingSeconds });
+    setError('');
+    if (navigator.onLine && Object.keys(pending).length) window.setTimeout(() => flushPending(next.id), 0);
+  }
+
+  function updateAnswers(next) {
+    setAnswers(next);
+    answerRef.current = next;
+    if (!attempt) return;
+    let pending = {};
+    try { pending = JSON.parse(localStorage.getItem(queueKey(attempt.id)) || '{}'); } catch { pending = {}; }
+    const updatedAt = Date.now();
+    for (const question of attempt.questions) {
+      const value = next[question.id] || { answers: [], markedForReview: false };
+      pending[question.id] = { answer: value.answers || [], markedForReview: Boolean(value.markedForReview), updatedAt };
+    }
+    localStorage.setItem(queueKey(attempt.id), JSON.stringify(pending));
+    setSaveState(navigator.onLine ? 'Answer saved on this device; syncing…' : 'Offline — answer saved on this device.');
+    if (navigator.onLine) window.setTimeout(() => flushPending(attempt.id), 250);
+  }
+
+  async function flushPending(attemptId) {
+    if (!session?.token || !navigator.onLine || flushing.current) return;
+    flushing.current = true;
+    try {
+      while (navigator.onLine) {
+        let pending = {};
+        try { pending = JSON.parse(localStorage.getItem(queueKey(attemptId)) || '{}'); } catch { pending = {}; }
+        const [questionId, item] = Object.entries(pending)[0] || [];
+        if (!questionId) break;
+        await request(`/api/attempts/${attemptId}/answers/${questionId}`, {
+          method: 'PUT',
+          body: JSON.stringify({ answers: item.answer || [], markedForReview: Boolean(item.markedForReview) }),
+        });
+        let latest = {};
+        try { latest = JSON.parse(localStorage.getItem(queueKey(attemptId)) || '{}'); } catch { latest = {}; }
+        if (latest[questionId]?.updatedAt === item.updatedAt) delete latest[questionId];
+        localStorage.setItem(queueKey(attemptId), JSON.stringify(latest));
+      }
+      const pending = JSON.parse(localStorage.getItem(queueKey(attemptId)) || '{}');
+      setSaveState(Object.keys(pending).length ? 'Some answers are waiting to sync.' : 'All answers saved');
+    } catch (err) {
+      setSaveState(navigator.onLine ? err.message : 'Offline — answers are saved on this device and will sync when you reconnect.');
+    } finally {
+      flushing.current = false;
+    }
+  }
+
+  useEffect(() => {
+    const online = () => { if (attempt) flushPending(attempt.id); };
+    window.addEventListener('online', online);
+    return () => window.removeEventListener('online', online);
+  }, [attempt?.id, session?.token]);
 
   async function saveAnswers() {
     if (!attempt) return;
-    await Promise.all(attempt.questions.map((q) => {
-      const answer = answerRef.current[q.id] || { answers: [], markedForReview: false };
-      return request(`/api/attempts/${attempt.id}/answers/${q.id}`, { method: 'PUT', body: JSON.stringify(answer) });
-    }));
+    await flushPending(attempt.id);
   }
   useEffect(() => {
     if (!attempt) return undefined;
-    const timer = window.setInterval(async () => {
-      const left = Math.max(0, Math.ceil((new Date(attempt.expiresAt).getTime() - Date.now()) / 1000));
-      setAttempt((old) => old ? { ...old, secondsLeft: left } : old);
-      if (left === 0) {
-        try {
-          await saveAnswers();
-          const result = await request(`/api/attempts/${attempt.id}/submit`, { method: 'POST' });
-          localStorage.removeItem('online-exam-attempt'); setAttempt(null);
-          setNotice(`Time ended. Submitted: ${result.score}/${result.maxScore}.`); await refresh();
-        } catch (err) { setError(err.message); }
-      }
-    }, 1000);
-    const autosave = window.setInterval(() => saveAnswers().catch((err) => setError(err.message)), 15000);
+    const timer = window.setInterval(() => setAttempt((old) => old ? { ...old, secondsLeft: Math.max(0, (old.secondsLeft ?? old.remainingSeconds ?? 0) - 1) } : old), 1000);
+    const autosave = window.setInterval(() => flushPending(attempt.id), 15000);
     return () => { window.clearInterval(timer); window.clearInterval(autosave); };
   }, [attempt?.id]);
+
+  useEffect(() => {
+    if (!attempt || attempt.status !== 'IN_PROGRESS' || attempt.secondsLeft > 0 || submitting.current) return;
+    submitting.current = true;
+    (async () => {
+      try {
+        await saveAnswers();
+        const result = await request(`/api/attempts/${attempt.id}/submit`, { method: 'POST' });
+        localStorage.removeItem(queueKey(attempt.id));
+        setAttempt(null);
+        setNotice(`Time ended. Submitted: ${result.score}/${result.maxScore}.`);
+        await refresh();
+      } catch (err) { setError(err.message); }
+      finally { submitting.current = false; }
+    })();
+  }, [attempt?.id, attempt?.secondsLeft]);
 
   async function start(exam) {
     try {
       const next = await request(`/api/exams/${exam.id}/attempts`, { method: 'POST' });
-      setAttempt(next); setAnswers(Object.fromEntries(next.questions.map((q) => [q.id, { answers: q.answer || [], markedForReview: q.markedForReview || false }])));
+      installAttempt(next);
       localStorage.setItem('online-exam-attempt', JSON.stringify({ id: next.id, examTitle: next.examTitle })); setError('');
     } catch (err) { setError(err.message); }
   }
@@ -76,7 +153,7 @@ function App() {
     if (!attempt || !window.confirm('Submit this exam? You cannot change your answers afterward.')) return;
     try {
       await saveAnswers(); const result = await request(`/api/attempts/${attempt.id}/submit`, { method: 'POST' });
-      localStorage.removeItem('online-exam-attempt'); setAttempt(null);
+      localStorage.removeItem('online-exam-attempt'); localStorage.removeItem(queueKey(attempt.id)); setAttempt(null);
       setNotice(`Submitted: ${result.score}/${result.maxScore} (${result.percentage}%). ${result.passed ? 'Pass' : 'Fail'}.`); await refresh();
     } catch (err) { setError(err.message); }
   }
@@ -85,7 +162,7 @@ function App() {
     localStorage.removeItem(SESSION_KEY); localStorage.removeItem('online-exam-attempt'); setSession(null); setAttempt(null);
   }
   if (!session) return <Auth onSuccess={(value) => { localStorage.setItem(SESSION_KEY, JSON.stringify(value)); setSession(value); setNotice('Welcome to the Online Exam Portal.'); setError(''); }} />;
-  if (attempt) return <AttemptView attempt={attempt} answers={answers} onChange={setAnswers} onSave={() => saveAnswers().then(() => setNotice('Answers saved.')).catch((err) => setError(err.message))} onSubmit={submit} error={error} />;
+  if (attempt) return <AttemptView attempt={attempt} answers={answers} onChange={updateAnswers} onSave={() => saveAnswers().then(() => setNotice('Answers saved.')).catch((err) => setError(err.message))} onSubmit={submit} error={error} saveState={saveState} />;
 
   return <><a className="skip-link" href="#main-content">Skip to main content</a><main className="app-shell">
     <header className="topbar"><a className="brand" href="#home" onClick={() => setTab('home')}>EXAM<span>PORTAL</span></a><div className="account"><span>{session.user.email}</span><span className="role-pill">{role}</span><button className="quiet" onClick={signOut}>Sign out</button></div></header>
@@ -172,11 +249,11 @@ function GroupManager({ request }) {
   return <><div className="page-heading"><div><p className="eyebrow">ELIGIBILITY</p><h1>Student groups</h1><p className="muted">Create class groups, add registered students, then assign groups to draft exams.</p></div></div>{message&&<div className="notice" role="status">{message}</div>}<section className="panel"><h2>Create group</h2><form className="form-grid" onSubmit={create}><label>Group name<input name="name" maxLength="120" required /></label><label>Description<input name="description" maxLength="500" /></label><button className="primary">Create group</button></form></section><section className="panel"><h2>Manage members</h2>{groups.length===0?<p className="empty">Create a group to add students.</p>:<><form className="inline-form" onSubmit={add}><label>Group<select value={selected} onChange={e=>setSelected(e.target.value)}>{groups.map(g=><option key={g.id} value={g.id}>{g.name} ({g.memberCount})</option>)}</select></label><label>Student email<input name="email" type="email" required /></label><button className="secondary">Add student</button></form><ul className="member-list">{members.map(m=><li key={m.id}>{m.fullName} <span>{m.email}</span><button className="text-action" onClick={()=>remove(m.id)}>Remove</button></li>)}</ul></>}</section></>;
 }
 
-function AttemptView({ attempt, answers, onChange, onSave, onSubmit, error }) {
+function AttemptView({ attempt, answers, onChange, onSave, onSubmit, error, saveState }) {
   const [current,setCurrent]=useState(0);const q=attempt.questions[current];const total=attempt.secondsLeft??Math.max(0,Math.ceil((new Date(attempt.expiresAt)-Date.now())/1000));const mins=Math.floor(total/60);const secs=total%60;
   function choose(option,multi){const old=answers[q.id]||{answers:[],markedForReview:false};const values=multi?(old.answers.includes(option)?old.answers.filter(x=>x!==option):[...old.answers,option]):[option];onChange({...answers,[q.id]:{...old,answers:values}});}
   function mark(){const old=answers[q.id]||{answers:[],markedForReview:false};onChange({...answers,[q.id]:{...old,markedForReview:!old.markedForReview}});}
-  return <main className="attempt-page"><header className="attempt-top"><div><p className="eyebrow">EXAM IN PROGRESS</p><h1>{attempt.examTitle}</h1></div><div className={`timer ${total<120?'urgent':''}`} aria-live="polite">{String(mins).padStart(2,'0')}:{String(secs).padStart(2,'0')}<small>remaining</small></div></header>{error&&<div className="error" role="alert">{error}</div>}
+  return <main className="attempt-page"><header className="attempt-top"><div><p className="eyebrow">EXAM IN PROGRESS</p><h1>{attempt.examTitle}</h1></div><div className={`timer ${total<120?'urgent':''}`} aria-live="polite">{String(mins).padStart(2,'0')}:{String(secs).padStart(2,'0')}<small>remaining</small></div></header>{error&&<div className="error" role="alert">{error}</div>}{saveState&&<p className="muted" aria-live="polite" role="status">{saveState}</p>}
     <div className="attempt-layout"><aside className="question-nav"><h2>Questions</h2><div className="number-grid">{attempt.questions.map((item,i)=><button key={item.id} className={`${i===current?'current':''} ${answers[item.id]?.answers?.length?'answered':''} ${answers[item.id]?.markedForReview?'marked':''}`} onClick={()=>setCurrent(i)} aria-label={`Question ${i+1}`}>{i+1}</button>)}</div><p className="legend"><span className="answered-dot"/> Answered <span className="marked-dot"/> Review</p></aside>
       <section className="question-card"><div className="card-top"><span>Question {current+1} of {attempt.questions.length}</span><span>{q.points} mark(s)</span></div><h2>{q.prompt}</h2><div className="choice-list">{q.options.map((option)=><label key={option} className={`choice ${(answers[q.id]?.answers||[]).includes(option)?'chosen':''}`}><input type={q.type==='MULTI_SELECT'?'checkbox':'radio'} name={`question-${q.id}`} checked={(answers[q.id]?.answers||[]).includes(option)} onChange={()=>choose(option,q.type==='MULTI_SELECT')} />{option}</label>)}</div><div className="question-actions"><button className="quiet" onClick={mark}>{answers[q.id]?.markedForReview?'Remove review mark':'Mark for review'}</button><button className="quiet" onClick={onSave}>Save now</button></div><div className="pager"><button className="secondary" disabled={current===0} onClick={()=>setCurrent(current-1)}>Previous</button><button className="secondary" disabled={current===attempt.questions.length-1} onClick={()=>setCurrent(current+1)}>Next question</button></div></section></div>
     <footer className="submit-bar"><span>{Object.values(answers).filter(v=>v.answers?.length).length} answered · {Object.values(answers).filter(v=>v.markedForReview).length} for review</span><button className="danger-button" onClick={onSubmit}>Submit exam</button></footer></main>;
