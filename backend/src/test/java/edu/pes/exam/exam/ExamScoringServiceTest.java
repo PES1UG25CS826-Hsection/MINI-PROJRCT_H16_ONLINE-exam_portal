@@ -22,6 +22,21 @@ class ExamScoringServiceTest {
     }
 
     @Test
+    void zeroNegativeMarkingDoesNotDeductForWrongAnswer() {
+        assertEquals(new BigDecimal("0.00"), scoring.score(new BigDecimal("2.0"), Set.of("B"), Set.of("A"), 0));
+    }
+
+    @Test
+    void fullNegativeMarkingDeductsAllQuestionPoints() {
+        assertEquals(new BigDecimal("-2.00"), scoring.score(new BigDecimal("2.0"), Set.of("B"), Set.of("A"), 100));
+    }
+
+    @Test
+    void roundsNegativePenaltyToTwoDecimalPlaces() {
+        assertEquals(new BigDecimal("-0.33"), scoring.score(new BigDecimal("1.0"), Set.of("B"), Set.of("A"), 33));
+    }
+
+    @Test
     void treatsUnansweredQuestionAsZero() {
         assertEquals(new BigDecimal("0.00"), scoring.score(BigDecimal.ONE, Set.of("B"), Set.of(), 50));
     }
