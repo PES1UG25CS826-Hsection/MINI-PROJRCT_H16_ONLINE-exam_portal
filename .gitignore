@@ -10,6 +10,9 @@ npm-debug.log*
 
 # Local environment and IDE files
 .env
+ops/kubernetes/config.yaml
 .idea/
 .vscode/
 *.iml
+__pycache__/
+*.py[cod]

@@ -30,6 +30,7 @@ services:
       DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-exam}
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      SECURITY_TOKEN_SECRET: ${TOKEN_SECRET:-local-development-secret-change-this-before-deploying-2026}
     depends_on:
       db: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -38,6 +39,11 @@ services:
     ports: ["${WEB_PORT:-3000}:80"]
     depends_on:
       api: { condition: service_started }
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost/ >/dev/null"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
 volumes:
   postgres_data:
   redis_data:
