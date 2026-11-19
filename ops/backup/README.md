@@ -11,7 +11,7 @@ The optional Compose `backup` profile takes a PostgreSQL custom-format dump imme
 5. Start the scheduled backup service with `docker compose --profile backup up -d backup`.
 6. Check `docker compose --profile backup logs backup` and confirm an `Encrypted backup completed` message. Files are stored in the `backup_data` Docker volume. Replicate that volume to an access-controlled off-host location to protect against loss of the Docker host.
 
-`BACKUP_INTERVAL_SECONDS` defaults to 86400 and is capped at 86400 to preserve the RPO target. `BACKUP_RETENTION_DAYS` defaults to 30. Each interval is measured start-to-start, so dump duration does not extend the 24-hour schedule. A backup failure is logged and retried at the next interval. The service is opt-in so a missing encryption recipient cannot silently result in plaintext backups.
+`BACKUP_INTERVAL_SECONDS` defaults to 86400 and is capped at 86400 to preserve the RPO target. `BACKUP_RETRY_SECONDS` defaults to 900 seconds and is bounded to 60–3600 seconds. `BACKUP_RETENTION_DAYS` defaults to 30. Successful intervals are measured start-to-start, so dump duration does not extend the 24-hour schedule. A backup failure retries after the shorter retry interval. The service is opt-in so a missing encryption recipient cannot silently result in plaintext backups.
 
 ## Verify a backup can be restored
 
@@ -20,6 +20,7 @@ This drill restores to a temporary database on the same PostgreSQL server, check
 ```sh
 docker compose --profile backup run --rm --no-deps \
   --user 0:0 \
+  --cap-add DAC_OVERRIDE \
   -v "$PWD/secrets/backup-age-identity:/run/secrets/backup-age-identity:ro" \
   --entrypoint /usr/local/bin/restore-test.sh backup \
   /backups/online_exam_YYYYMMDDTHHMMSSZ.dump.age \
@@ -27,6 +28,8 @@ docker compose --profile backup run --rm --no-deps \
 ```
 
 Replace the archive name with an existing encrypted backup. The identity file must match the public recipient used to encrypt it. The command reports the restored public table count and Flyway version; a non-zero exit indicates a failed drill.
+
+The one-off restore container needs `DAC_OVERRIDE` because the backup is intentionally written mode `0600` by the unprivileged backup service, while the restore image drops all capabilities by default. This capability is granted only to the temporary restore command; the scheduled service remains restricted.
 
 ## Restore procedure
 
