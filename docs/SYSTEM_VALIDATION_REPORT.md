@@ -17,8 +17,10 @@ System validation could not be performed in this environment because Docker is n
 | Registration, login, lockout | Persisted accounts, token sessions, rate limiting and lockout behave as specified. | Not run |
 | Teacher exam authoring | Create draft, add questions, validate totals, publish. | Not run |
 | Student attempt | Start exam, save answers/review flags, enforce timing and submit. | Not run |
+| Group eligibility and question bank | Create groups, add students, select bank questions, enforce group-only access. | Not run; code is present but needs live database verification |
 | Results and reports | Persist score and display/export results and metrics. | Not run |
 | Administrator functions | Restrict summary and account management to admins. | Not run |
+| Backup/restore | Run encrypted daily backup and time an isolated restore drill. | Not run; Docker volume and PostgreSQL were unavailable |
 
 ## Required follow-up
 

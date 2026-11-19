@@ -72,12 +72,12 @@ public class ExamController {
             return jdbc.query("SELECT id,title,subject,status,duration_minutes,starts_at,ends_at,total_marks,passing_marks,negative_mark_percent,max_attempts,show_answers_after_submit FROM exams ORDER BY created_at DESC",
                     (rs, n) -> examMap(new ExamRow(rs.getObject("id", UUID.class), rs.getString("title"), rs.getString("subject"), rs.getString("status"), rs.getInt("duration_minutes"), instant(rs.getTimestamp("starts_at")), instant(rs.getTimestamp("ends_at")), rs.getBigDecimal("total_marks"), rs.getBigDecimal("passing_marks"), rs.getInt("negative_mark_percent"), rs.getInt("max_attempts"), rs.getBoolean("show_answers_after_submit"))));
         }
-        return jdbc.query("SELECT e.id,e.title,e.subject,e.status,e.duration_minutes,e.starts_at,e.ends_at,e.total_marks,e.passing_marks,e.negative_mark_percent,e.max_attempts,e.show_answers_after_submit FROM exams e WHERE e.status='PUBLISHED' ORDER BY e.starts_at",
+        return jdbc.query("SELECT DISTINCT e.id,e.title,e.subject,e.status,e.duration_minutes,e.starts_at,e.ends_at,e.total_marks,e.passing_marks,e.negative_mark_percent,e.max_attempts,e.show_answers_after_submit FROM exams e JOIN exam_groups eg ON eg.exam_id=e.id JOIN group_members gm ON gm.group_id=eg.group_id WHERE e.status='PUBLISHED' AND gm.student_id=? ORDER BY e.starts_at",
                 (rs, n) -> {
                     ExamRow e = new ExamRow(rs.getObject("id", UUID.class), rs.getString("title"), rs.getString("subject"), rs.getString("status"), rs.getInt("duration_minutes"), instant(rs.getTimestamp("starts_at")), instant(rs.getTimestamp("ends_at")), rs.getBigDecimal("total_marks"), rs.getBigDecimal("passing_marks"), rs.getInt("negative_mark_percent"), rs.getInt("max_attempts"), rs.getBoolean("show_answers_after_submit"));
                     String state = jdbc.queryForObject("SELECT CASE WHEN EXISTS(SELECT 1 FROM attempts WHERE exam_id=? AND student_id=? AND status IN ('SUBMITTED','TIMED_OUT')) THEN 'Completed' WHEN now() < ? THEN 'Upcoming' ELSE 'Available' END", String.class, e.id(), user.id(), Timestamp.from(e.startsAt()));
                     return Map.<String,Object>of("id",e.id(),"title",e.title(),"subject",e.subject(),"durationMinutes",e.duration(),"startsAt",e.startsAt(),"endsAt",e.endsAt(),"totalMarks",e.total(),"state",state);
-                });
+                },user.id());
     }
 
     @PostMapping("/exams")
@@ -123,6 +123,8 @@ public class ExamController {
         BigDecimal sum=jdbc.queryForObject("SELECT COALESCE(SUM(COALESCE(eq.points_override,q.points)),0) FROM exam_questions eq JOIN questions q ON q.id=eq.question_id WHERE eq.exam_id=?",BigDecimal.class,examId);
         if (sum==null || sum.signum()<=0) throw bad("Add at least one question before publishing.");
         if (sum.compareTo(exam.total())!=0) throw bad("Question marks must add up to the exam total of "+exam.total()+".");
+        Integer assigned=jdbc.queryForObject("SELECT COUNT(*) FROM exam_groups WHERE exam_id=?",Integer.class,examId);
+        if(assigned==null || assigned==0) throw bad("Assign the exam to at least one student group before publishing.");
         jdbc.update("UPDATE exams SET status='PUBLISHED',updated_at=now() WHERE id=?",examId);
         audit(user.id(),"EXAM_PUBLISH","EXAM",examId.toString(),null);
         return Map.of("id",examId,"status","PUBLISHED");
@@ -145,6 +147,8 @@ public class ExamController {
         ExamRow exam=exam(examId);
         Instant now=Instant.now();
         if(!exam.status().equals("PUBLISHED")) throw conflict("This exam is not available.");
+        Integer eligible=jdbc.queryForObject("SELECT COUNT(*) FROM exam_groups eg JOIN group_members gm ON gm.group_id=eg.group_id WHERE eg.exam_id=? AND gm.student_id=?",Integer.class,examId,user.id());
+        if(eligible==null || eligible==0) throw new ResponseStatusException(HttpStatus.NOT_FOUND,"Exam not found.");
         if(now.isBefore(exam.startsAt())) throw conflict("This exam has not started yet.");
         if(now.isAfter(exam.endsAt())) throw conflict("This exam has ended.");
         Integer used=jdbc.queryForObject("SELECT COUNT(*) FROM attempts WHERE exam_id=? AND student_id=? AND status IN ('IN_PROGRESS','SUBMITTED','TIMED_OUT')",Integer.class,examId,user.id());

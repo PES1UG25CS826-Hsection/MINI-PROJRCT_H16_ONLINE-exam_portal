@@ -5,7 +5,7 @@
 
 | Measure | Covered | Total | Coverage |
 |---|---:|---:|---:|
-| Conditional branches | 8 | 198 | 4.0% |
+| Conditional branches | 8 | 284 | 2.8% |
 
 The covered branches are in `ExamScoringService`. Branches in authentication, authorization, exam lifecycle, administration, and reporting remain uncovered. The Test Plan's 70% target is not met. No claim is made that the unexecuted branches are correct.
 
