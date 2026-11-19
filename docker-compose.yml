@@ -4,7 +4,7 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-online_exam}
       POSTGRES_USER: ${POSTGRES_USER:-exam}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your .env file}
     ports: ["${POSTGRES_PORT:-5432}:5432"]
     volumes: ["postgres_data:/var/lib/postgresql/data"]
     healthcheck:
@@ -27,9 +27,13 @@ services:
     environment:
       DATABASE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-online_exam}
       DATABASE_USERNAME: ${POSTGRES_USER:-exam}
-      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your .env file}
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      DEMO_ADMIN_EMAIL: ${DEMO_ADMIN_EMAIL:-}
+      DEMO_ADMIN_PASSWORD: ${DEMO_ADMIN_PASSWORD:-}
+      DEMO_TEACHER_EMAIL: ${DEMO_TEACHER_EMAIL:-}
+      DEMO_TEACHER_PASSWORD: ${DEMO_TEACHER_PASSWORD:-}
     depends_on:
       db: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -46,13 +50,12 @@ services:
       PGPORT: 5432
       PGDATABASE: ${POSTGRES_DB:-online_exam}
       PGUSER: ${POSTGRES_USER:-exam}
-      PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your .env file}
       BACKUP_AGE_RECIPIENT: ${BACKUP_AGE_RECIPIENT:-}
       BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
       BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
       BACKUP_DIR: /backups
-    volumes:
-      - backup_data:/backups
+    volumes: ["backup_data:/backups"]
     depends_on:
       db: { condition: service_healthy }
     restart: unless-stopped
