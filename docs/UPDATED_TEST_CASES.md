@@ -1,6 +1,6 @@
 # Updated Test Case Document — Online Exam Portal
 
-**Revision date:** 2026-11-19
+**Revision date:** 2026-11-20
 **Basis:** current implementation, SRS, and Test Plan. Cases marked *not executed* are not evidence of passing behavior.
 
 | ID | Requirement | Test case / expected result | Current evidence/status |
@@ -10,6 +10,10 @@
 | UT-SCORE-03 | Unanswered question | No response earns zero and no penalty. | Pass; `ExamScoringServiceTest` |
 | UT-SCORE-04 | Multi-select scoring | Selection order does not change exact-match scoring. | Pass; `ExamScoringServiceTest` |
 | UT-SCORE-05 | Score boundary | Penalties cannot reduce the final score below zero. | Pass; `ExamScoringServiceTest` |
+| UT-AUTH-01 | Session tokens | Issue URL-safe tokens, save them with the idle TTL, refresh existing sessions, and revoke sessions. | Pass; `TokenServiceTest` (4 tests) |
+| UT-AUTH-02 | Bearer authentication | Authenticate an active user, ignore invalid user IDs, and skip requests without bearer tokens. | Pass; `BearerTokenFilterTest` (3 tests) |
+| UT-EXAM-01 | Exam validation | Reject an end time before/equal to start and passing marks above total marks. | Pass; `ExamAndQuestionValidationTest` |
+| UT-QUESTION-01 | Question validation | Reject unsupported types, duplicate options, and invalid True/False option labels. | Pass; `ExamAndQuestionValidationTest` |
 | SYS-AUTH-01 | Registration | Register a student with a valid unique email and strong password; reject duplicate/weak inputs. | Not executed against PostgreSQL/Redis |
 | SYS-AUTH-02 | Login and roles | Valid credentials issue a session; invalid credentials fail; role-protected APIs deny unauthorized roles. | Not executed against PostgreSQL/Redis |
 | SYS-AUTH-03 | Account protection | Five failed logins lock the account for the configured interval; rate limit is enforced. | Not executed against Redis |
@@ -28,4 +32,4 @@
 
 ## Execution note
 
-The five scoring unit tests ran in Maven `verify` and passed. The system cases require a running PostgreSQL 15 and Redis 7 instance plus end-to-end execution; they were not run in this environment. See `SYSTEM_VALIDATION_REPORT.md` for the validation status.
+All 17 unit tests ran in Maven `verify` and passed. The system cases require a running PostgreSQL 15 and Redis 7 instance plus end-to-end execution; they were not run in this environment. See `SYSTEM_VALIDATION_REPORT.md` for the validation status.

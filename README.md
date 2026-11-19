@@ -57,12 +57,12 @@ CI runs the backend Maven verification and frontend production build on pushes a
 
 The current code includes student registration and login, token-based sessions, login throttling/temporary lockout, role-protected teacher/admin APIs, a reusable question bank, exam draft/publish and student-group assignment, student exam attempts with answer saving and review flags, scoring/results, teacher metrics/CSV export, an admin summary/user creation, and a responsive role-based web UI.
 
-## Validation status (2026-11-19)
+## Validation status (2026-11-20)
 
-- Backend: Maven `verify` completed; 5 scoring unit tests passed, 0 failed.
+- Backend: Maven `verify` completed; 17 unit tests passed, 0 failed.
 - Frontend: Vite production build completed successfully.
 - System validation: not run. Docker was unavailable in the build environment, so PostgreSQL/Redis-backed workflows were not exercised end-to-end.
-- Backend line coverage: 1.9%; branch coverage: 2.8%. The Test Plan target of 70% is not met. Current tests cover only the scoring service.
+- Backend line coverage: 12.6%; branch coverage: 9.2%. The Test Plan target of 70% is not met. Current tests cover scoring, session token handling, bearer filtering, and exam/question validation; database-backed workflows remain unverified.
 - The group and question-bank workflows are implemented in code but have not yet been validated end-to-end. Scheduling/timer edge cases, security tests, accessibility checks, and load/recovery targets also require further evidence.
 - The automated encrypted backup profile and restore procedure are documented, but no timed restore drill or external backup copy has been verified.
 

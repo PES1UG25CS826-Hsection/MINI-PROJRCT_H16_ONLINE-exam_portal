@@ -1,18 +1,18 @@
 # Unit Test Report — Online Exam Portal
 
-**Execution date:** 2026-11-19
+**Execution date:** 2026-11-20
 **Command:** `mvn verify` (backend)
 **Framework:** JUnit 5 / Spring Boot Test
 
 | Metric | Result |
 |---|---:|
-| Test classes | 1 |
-| Tests run | 5 |
-| Passed | 5 |
+| Test classes | 4 |
+| Tests run | 17 |
+| Passed | 17 |
 | Failed | 0 |
 | Errors | 0 |
 | Skipped | 0 |
 
-The executed suite tests the isolated scoring service: correct answer scoring, negative marking, unanswered questions, order-independent multi-select comparison, and a zero score floor. The suite does not yet provide unit coverage for authentication, authorization, exam workflows, persistence, or reporting.
+The suite covers scoring (5 tests), session token behavior (4 tests), bearer-token filter behavior (3 tests), and exam/question validation (5 tests). It does not yet exercise database-backed persistence, full authentication flows, report aggregation/CSV export, group eligibility, or browser behavior.
 
 Raw Surefire results are generated at `backend/target/surefire-reports/` after `mvn verify`. Only the summary is committed here; generated build output is not committed.

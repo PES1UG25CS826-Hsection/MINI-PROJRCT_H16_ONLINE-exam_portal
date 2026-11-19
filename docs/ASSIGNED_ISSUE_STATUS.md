@@ -2,7 +2,7 @@
 
 **Repository:** `PES1UG25CS826-Hsection/MINI-PROJRCT_H16_ONLINE-exam_portal`
 **GitHub assignee checked:** `ManojGaonkar05`
-**Checked:** 2026-11-19. GitHub currently shows 13 assigned issues open. Issues #48 and #49 were closed when the deliverables were merged through PR #57.
+**Checked:** 2026-11-20. GitHub currently shows 13 assigned issues open. Issues #48 and #49 were closed when the deliverables were merged through PR #57.
 
 | Issue | Summary | Evidence in this branch | Remaining before issue can be claimed complete |
 |---|---|---|---|
@@ -11,7 +11,7 @@
 | #39 | Documentation/demo | README, deviations list, two-minute script. | Record and link actual demo video. |
 | #38 | Accessibility | Skip link, focus-visible styles, labelled form controls, responsive styles. | Automated scan, full keyboard review, documented 4.5:1 contrast audit. |
 | #36 | Daily backup/restore | Encrypted daily backup profile, retention, restore script and instructions. | Configure external storage, run backup and timed restore drill, record proof. |
-| #35 | Unit coverage | Maven/JaCoCo and scoring unit tests in CI. | Coverage is 1.9% line and 2.8% branch; reach 70% with meaningful tests. |
+| #35 | Unit coverage | Maven/JaCoCo; 17 passing tests cover scoring, token handling, bearer filtering, and exam/question validation. | Coverage is 12.6% line and 9.2% branch; reach 70% with meaningful tests. |
 | #34 | Browser support | Responsive layout with 360px minimum width. | Test latest two browser versions across Chrome/Firefox/Edge/Safari and record results. |
 | #33 | Usability | First-use flows are present in the UI. | Run and record the required five-person study; 90%/3-minute target is unverified. |
 | #32 | Per-attempt randomization | Stable deterministic question and option order per attempt when enabled. | Add workflow/integration tests proving stable order and answer mapping. |
@@ -20,6 +20,6 @@
 | #10 | Group assignment | Group/membership schema, teacher/admin management API/UI, draft exam assignment, and student list/start eligibility checks. | Run group visibility and direct-start rejection tests against PostgreSQL 15. |
 | #9 | Question selection/negative marks | Reusable bank questions can be selected for drafts; negative marking is persisted and applied. | Add end-to-end scoring validation against PostgreSQL 15. |
 | #8 | Question bank CRUD | Teacher UI/API supports create, list, edit, delete, and ownership/in-use protections. | Exercise CRUD and rejection cases against PostgreSQL 15. |
-| #7 | Teacher exam creation | Draft exam fields and validation for dates, duration, marks. | Add persisted workflow tests and validate all acceptance cases. |
+| #7 | Teacher exam creation | Draft exam fields and validation for dates and marks; invalid time windows and passing marks above total are covered by unit tests. | Add persisted workflow tests and validate all acceptance cases. |
 
 The deliverables branch was merged into `main` through PR #57 on 2026-11-19. Issues #48 and #49 closed with that merge; the other 13 assigned issues listed above remain open pending the stated verification, evidence, or remaining work. Reports under `docs/` preserve actual pass/fail/block status.
