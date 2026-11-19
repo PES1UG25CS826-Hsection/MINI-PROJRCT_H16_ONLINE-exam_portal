@@ -83,7 +83,7 @@ public class PortalService {
             item.put("status", row.get("active_attempt") != null ? "IN_PROGRESS" : Boolean.TRUE.equals(row.get("completed")) ? "COMPLETED" : "AVAILABLE");
             if (row.get("active_attempt") != null) available.add(item);
             else if (Boolean.TRUE.equals(row.get("completed"))) completed.add(item);
-            else if (row.get("starts_at") != null && ((java.time.OffsetDateTime) row.get("starts_at")).isAfter(databaseNow())) upcoming.add(item);
+            else if (row.get("starts_at") != null && ((java.time.OffsetDateTime) row.get("starts_at")).toInstant().isAfter(databaseNow())) upcoming.add(item);
             else available.add(item);
         }
         return Map.of("upcoming", upcoming, "available", available, "completed", completed);
@@ -99,7 +99,7 @@ public class PortalService {
         if (!"PUBLISHED".equals(exam.get("status"))) throw new ResponseStatusException(HttpStatus.CONFLICT, "This exam is not available");
         if (jdbc.queryForObject("SELECT count(*) FROM exam_assignments WHERE exam_id=? AND student_id=?", Long.class, examId, studentId) == 0)
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This exam is not assigned to your account");
-        OffsetTimes window = new OffsetTimes((java.time.OffsetDateTime) exam.get("starts_at"), (java.time.OffsetDateTime) exam.get("ends_at"), databaseNow());
+        OffsetTimes window = new OffsetTimes((java.time.OffsetDateTime) exam.get("starts_at"), (java.time.OffsetDateTime) exam.get("ends_at"), java.time.OffsetDateTime.ofInstant(databaseNow(), java.time.ZoneOffset.UTC));
         if (window.start() != null && window.now().isBefore(window.start())) throw new ResponseStatusException(HttpStatus.CONFLICT, "This exam has not started yet");
         if (window.end() != null && !window.now().isBefore(window.end())) throw new ResponseStatusException(HttpStatus.CONFLICT, "This exam has ended");
         if (jdbc.queryForObject("SELECT count(*) FROM exam_questions WHERE exam_id=?",Integer.class,examId)==0)
