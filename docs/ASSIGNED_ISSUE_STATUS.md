@@ -2,7 +2,7 @@
 
 **Repository:** `PES1UG25CS826-Hsection/MINI-PROJRCT_H16_ONLINE-exam_portal`
 **GitHub assignee checked:** `ManojGaonkar05`
-**Checked:** 2026-11-19. GitHub currently shows 13 assigned issues open. Issues #48 and #49 were closed when the deliverables were merged through PR #57.
+**Checked:** 2026-11-20. GitHub currently shows 13 assigned issues open. Issues #48 and #49 were closed when the deliverables were merged through PR #57.
 
 | Issue | Summary | Evidence in this branch | Remaining before issue can be claimed complete |
 |---|---|---|---|
@@ -20,6 +20,6 @@
 | #10 | Group assignment | Group/membership schema, teacher/admin management API/UI, draft exam assignment, and student list/start eligibility checks. `ExamGroupControllerTest` covers assignment persistence, ownership, draft-only mutation, unassignment, and audit calls; `ExamStudentEligibilityTest` verifies published/group-filtered student listing and rejection of direct starts by unassigned students. | PostgreSQL 15 group visibility and direct-start integration tests remain unverified because the local Docker engine is unavailable. |
 | #9 | Question selection/negative marks | Reusable bank questions can be selected for drafts; negative marking is persisted and applied. | Add end-to-end scoring validation against PostgreSQL 15. |
 | #8 | Question bank CRUD | Teacher UI/API supports create, list, edit, delete, and ownership/in-use protections. | Exercise CRUD and rejection cases against PostgreSQL 15. |
-| #7 | Teacher exam creation | Draft exam fields and validation for dates, duration, marks. | Add persisted workflow tests and validate all acceptance cases. |
+| #7 | Teacher exam creation | Draft exam fields and validation for dates, duration, and marks. `ExamControllerTest` checks request constraints, invalid windows/marks, and H2 persistence. `ExamControllerPostgresTest` migrates an empty PostgreSQL 15.19 database through Flyway V1–V3 and verifies persisted draft fields, audit event, and validation before writes. | Browser-level create flow remains unverified. |
 
 The deliverables branch was merged into `main` through PR #57 on 2026-11-19. Issues #48 and #49 closed with that merge; the other 13 assigned issues listed above remain open pending the stated verification, evidence, or remaining work. Reports under `docs/` preserve actual pass/fail/block status.
