@@ -2,7 +2,7 @@
 
 **Repository:** `PES1UG25CS826-Hsection/MINI-PROJRCT_H16_ONLINE-exam_portal`
 **GitHub assignee checked:** `ManojGaonkar05`
-**Checked:** 2026-11-19. GitHub currently shows 13 assigned issues open. Issues #48 and #49 were closed when the deliverables were merged through PR #57.
+**Checked:** 2026-11-20. GitHub currently shows 13 assigned issues open. Issues #48 and #49 were closed when the deliverables were merged through PR #57.
 
 | Issue | Summary | Evidence in this branch | Remaining before issue can be claimed complete |
 |---|---|---|---|
@@ -15,7 +15,7 @@
 | #34 | Browser support | Responsive layout with 360px minimum width. | Test latest two browser versions across Chrome/Firefox/Edge/Safari and record results. |
 | #33 | Usability | First-use flows are present in the UI. | Run and record the required five-person study; 90%/3-minute target is unverified. |
 | #32 | Per-attempt randomization | Stable deterministic question and option order per attempt when enabled. `AttemptRandomizationTest` verifies enabled ordering changes and stays stable across reads for an attempt, disabled ordering stays in stored order, saved answer values map through the randomized options, and answer keys are hidden before submission. | PostgreSQL 15 attempt reload/scoring integration remains unverified because the local Docker engine is unavailable. |
-| #31 | Admin summary | Admin-only persisted totals for users, exams, attempts. | Add authorization and empty-database integration tests. |
+| #31 | Admin summary | Admin-only persisted totals for active users, exams, attempts, and submitted attempts. `AdminSummaryControllerTest` covers persisted counts, zero totals, and the admin-only controller authorization annotation. | PostgreSQL 15 persisted-count integration and authenticated HTTP authorization remain unverified because the local Docker engine is unavailable. |
 | #30 | Teacher reports | Average/high/low/pass percentage and escaped CSV for owned exams. `ReportControllerTest` covers metrics, zero-result defaults, and teacher ownership; `ExamReportCsvTest` verifies quoting/escaping and rejects access to another teacher's exam. | PostgreSQL 15 aggregate and CSV integration tests remain unverified because the local Docker engine is unavailable. |
 | #10 | Group assignment | Group/membership schema, teacher/admin management API/UI, draft exam assignment, and student list/start eligibility checks. `ExamGroupControllerTest` covers assignment persistence, ownership, draft-only mutation, unassignment, and audit calls; `ExamStudentEligibilityTest` verifies published/group-filtered student listing and rejection of direct starts by unassigned students. | PostgreSQL 15 group visibility and direct-start integration tests remain unverified because the local Docker engine is unavailable. |
 | #9 | Question selection/negative marks | Reusable bank question assignment persists order and points overrides; negative mark percentage is stored and applied by scoring. `QuestionSelectionControllerTest` covers append order/override persistence, duplicate and published-exam rejection, removal and audit behavior; `ExamScoringServiceTest` covers zero, 25%, 33%, and 100% penalties, unanswered and multi-select answers, and final-score floor. | PostgreSQL 15 migration and persisted workflow/scoring integration remain unverified because the local Docker engine is unavailable. |
