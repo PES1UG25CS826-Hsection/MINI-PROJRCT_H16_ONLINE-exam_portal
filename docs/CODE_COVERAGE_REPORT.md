@@ -5,10 +5,10 @@
 
 | Measure | Covered | Total | Coverage |
 |---|---:|---:|---:|
-| Instructions | 59 | 3,423 | 1.7% |
-| Lines | 8 | 298 | 2.7% |
-| Methods | 3 | 91 | 3.3% |
-| Classes | 1 | 22 | 4.5% |
+| Instructions | 59 | 4,816 | 1.2% |
+| Lines | 8 | 417 | 1.9% |
+| Methods | 3 | 129 | 2.3% |
+| Classes | 1 | 30 | 3.3% |
 
 All measured coverage comes from `ExamScoringService`; the remaining application code was not exercised by the current unit suite. The Test Plan's 70% target is not met. This report records the actual result rather than treating the target as achieved.
 

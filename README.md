@@ -2,6 +2,20 @@
 
 A role-based online exam portal built with React, Spring Boot, PostgreSQL, and Redis. This repository is an active mini-project submission; see the validation status below before treating it as production-ready.
 
+## Team
+
+| Name | SRN |
+|---|---|
+| Manoj A C | PES1UG25CS826 |
+| Manoj Gaonkar | PES1UG25CS827 |
+| Ruthik | PES1UG25CS837 |
+
+## Project backlog
+
+- Functional, non-functional, and security requirements are tracked as [GitHub issues](../../issues).
+- The [project board](https://github.com/users/PES1UG25CS826-Hsection/projects/1) tracks sprint work.
+- Each assigned item should be submitted through a pull request linked to its issue.
+
 ## Technology
 
 - Java 17 and Spring Boot 3
@@ -15,10 +29,14 @@ A role-based online exam portal built with React, Spring Boot, PostgreSQL, and R
 1. Install Docker Desktop with Compose enabled.
 2. Copy `.env.example` to `.env`. Set a unique `POSTGRES_PASSWORD`. To create demo admin/teacher accounts, supply both email and a password of at least 12 characters for each. Leave these values blank to disable the optional accounts.
 3. Run `docker compose up --build` from the repository root.
-4. Open <http://localhost:3000>. The API is available at <http://localhost:8080>; health checks are at `/actuator/health` and `/api/health`.
+4. Open <http://localhost:3000>. The web container proxies `/api/` and `/actuator/` to the API service on port 8080 inside the Compose network; health checks are at <http://localhost:3000/actuator/health> and <http://localhost:3000/api/health>.
 5. Stop with `docker compose down`. Adding `-v` also deletes local database and Redis data.
 
 Student accounts can be registered from the UI. Admin and teacher accounts are only seeded when their environment variables are explicitly configured; the app has no default credentials. Change demo passwords before sharing a running instance.
+
+### Encrypted database backups
+
+Set `BACKUP_AGE_RECIPIENT` in `.env` to an `age` public key and run `docker compose --profile backup up -d --build`. The backup service takes an encrypted PostgreSQL custom-format dump immediately, then schedules subsequent dumps no more than 24 hours apart, keeping 30 days by default. Backups are stored in the Docker `backup_data` volume. Copy them to an independent, access-controlled storage location for protection from host or volume loss. Create and protect the corresponding age identity separately; never commit it. See [`ops/backup/README.md`](ops/backup/README.md) for restore steps. A restore drill has not yet been executed for this submission, so the 4-hour RTO is not verified.
 
 ## Local development
 
@@ -31,17 +49,20 @@ CI runs the backend Maven verification and frontend production build on pushes a
 
 ## Current implementation
 
-The current code includes student registration and login, token-based sessions, login throttling/temporary lockout, role-protected teacher/admin APIs, exam draft and publish actions, supported question types, student exam attempts with answer saving and review flags, scoring/results, teacher metrics/CSV export, an admin summary/user creation, and a responsive role-based web UI.
+The current code includes student registration and login, token-based sessions, login throttling/temporary lockout, role-protected teacher/admin APIs, a reusable question bank, exam draft/publish and student-group assignment, student exam attempts with answer saving and review flags, scoring/results, teacher metrics/CSV export, an admin summary/user creation, and a responsive role-based web UI.
 
 ## Validation status (2026-11-19)
 
 - Backend: Maven `verify` completed; 5 scoring unit tests passed, 0 failed.
 - Frontend: Vite production build completed successfully.
 - System validation: not run. Docker was unavailable in the build environment, so PostgreSQL/Redis-backed workflows were not exercised end-to-end.
-- Backend line coverage: 2.7%; branch coverage: 4.0%. The Test Plan target of 70% is not met. Current tests cover only the scoring service.
-- The system is not yet validated against every SRS requirement. In particular, full group/eligibility assignment, all scheduling/timer edge cases, security tests, accessibility checks, and load/recovery targets require further implementation or evidence.
+- Backend line coverage: 1.9%; branch coverage: 2.8%. The Test Plan target of 70% is not met. Current tests cover only the scoring service.
+- The group and question-bank workflows are implemented in code but have not yet been validated end-to-end. Scheduling/timer edge cases, security tests, accessibility checks, and load/recovery targets also require further evidence.
+- The automated encrypted backup profile and restore procedure are documented, but no timed restore drill or external backup copy has been verified.
 
 See [`docs/UPDATED_TEST_CASES.md`](docs/UPDATED_TEST_CASES.md) and the four reports in [`docs/`](docs/) for the actual test evidence and pending validation. Reports clearly distinguish passing unit tests from system cases that have not been executed.
+
+See [`docs/DEVIATIONS.md`](docs/DEVIATIONS.md) for known scope and evidence gaps, and [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md) for the two-minute demo script. The script is not a recorded demo video.
 
 ## Project documents
 
