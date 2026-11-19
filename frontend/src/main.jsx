@@ -82,7 +82,7 @@ function App() {
   }
   async function signOut() {
     try { await request('/api/auth/logout', { method: 'POST' }); } catch { /* Clear the browser copy even when the server is unavailable. */ }
-    localStorage.removeItem(SESSION_KEY); localStorage.removeItem('online-exam-attempt'); setSession(null); setAttempt(null);
+    localStorage.removeItem(SESSION_KEY); localStorage.removeItem('online-exam-attempt'); setSession(null); setAttempt(null); setTab('home');
   }
   if (!session) return <Auth onSuccess={(value) => { localStorage.setItem(SESSION_KEY, JSON.stringify(value)); setSession(value); setNotice('Welcome to the Online Exam Portal.'); setError(''); }} />;
   if (attempt) return <AttemptView attempt={attempt} answers={answers} onChange={setAnswers} onSave={() => saveAnswers().then(() => setNotice('Answers saved.')).catch((err) => setError(err.message))} onSubmit={submit} error={error} />;
