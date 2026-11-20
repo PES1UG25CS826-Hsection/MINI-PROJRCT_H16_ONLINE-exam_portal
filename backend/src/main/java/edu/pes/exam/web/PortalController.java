@@ -53,7 +53,7 @@ public class PortalController {
     public Map<String,Object> result(@PathVariable UUID attemptId,Authentication auth) { return portal.result(userId(auth),attemptId); }
 
     private UUID userId(Authentication auth) {
-        if(auth==null || !(auth.getPrincipal() instanceof UUID id)) throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,"Sign in to continue");
-        return id;
+        if(auth==null) throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,"Sign in to continue");
+        return auth.getPrincipal() instanceof edu.pes.exam.security.PortalPrincipal p ? p.id() : (UUID) auth.getPrincipal();
     }
 }
