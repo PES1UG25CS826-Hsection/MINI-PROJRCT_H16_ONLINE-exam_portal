@@ -9,7 +9,7 @@ Automated axe checks are added for the sign-in screen and student dashboard usin
 ## Verification results
 
 - Automated test command: `cd frontend; npm ci; npm run test:browser`.
-- Automated result (2026-11-20): **2 axe scans completed** (sign-in and Student dashboard), with **0 serious or critical violations**. Lower-impact findings were not used as a WCAG pass/fail gate in this check; examine the saved Playwright output before making further claims.
+- Automated result (2026-11-20): **8 axe scans completed** (sign-in and Student dashboard in Chromium, Firefox, WebKit, and Edge), with **0 serious or critical violations**. Lower-impact findings were not used as a WCAG pass/fail gate in this check; examine the saved Playwright output before making further claims.
 - Manual keyboard-only review: **not performed in this verification**.
 - Manual contrast measurement with approved tooling: **not performed in this verification**.
 - Screen-reader/browser testing: **not performed**.
