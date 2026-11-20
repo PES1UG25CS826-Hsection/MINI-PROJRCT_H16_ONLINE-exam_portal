@@ -7,6 +7,6 @@
 |---|---:|---:|---:|
 | Lines | 306 | 425 | 72.00% |
 
-The backend suite ran 72 tests with no failures or skips in the existing verified run. Maven `verify` enforced the bundle line-coverage floor of 70%. The reported percentage is from JaCoCo XML generated in the current `fix/auth-filter-registration` worktree; it is not a GitHub CI result. This suite was not rerun during the later browser/documentation pass.
+The reported percentage is from JaCoCo XML generated in the `fix/auth-filter-registration` worktree; it is not a GitHub CI percentage. That run executed 72 tests with no failures or skips. GitHub Actions CI run [#55](https://github.com/PES1UG25CS826-Hsection/MINI-PROJRCT_H16_ONLINE-exam_portal/actions/runs/44682310973) for PR #62 then executed 83 tests with no failures, errors, or skips and passed Maven `verify`; JaCoCo analyzed 40 backend classes and reported that all coverage checks were met. The CI artifact was unavailable for retrieving its exact line total. No JaCoCo package or class exclusions are configured in `backend/pom.xml`.
 
 Recreate the HTML/XML/CSV evidence by running `mvn verify` in `backend/`; JaCoCo output is written to `backend/target/site/jacoco/`.
