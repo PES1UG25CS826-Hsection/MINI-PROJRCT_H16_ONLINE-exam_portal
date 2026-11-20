@@ -1,25 +1,41 @@
 # Assigned GitHub Issue Status
 
-**Repository:** `PES1UG25CS826-Hsection/MINI-PROJRCT_H16_ONLINE-exam_portal`
-**GitHub assignee checked:** `ManojGaonkar05`
-**Checked:** 2026-11-20. GitHub currently shows 13 assigned issues open. Issues #48 and #49 were closed when the deliverables were merged through PR #57.
+Repository: `PES1UG25CS826-Hsection/MINI-PROJRCT_H16_ONLINE-exam_portal`
 
-| Issue | Summary | Evidence in this branch | Remaining before issue can be claimed complete |
-|---|---|---|---|
-| #48 | Project scaffold (closed) | Spring Boot, React/Vite, Compose, env sample, CI, run instructions; merged through PR #57. | Verify clean Compose startup. |
-| #49 | Schema/migrations (closed) | Flyway V1 baseline and V2/V3 workflow migrations; merged through PR #57. | Run clean migration against PostgreSQL 15 and validate schema. |
-| #39 | Documentation/demo | README, deviations list, two-minute script. | Record and link actual demo video. |
-| #38 | Accessibility | Skip link, focus-visible styles, labelled form controls, responsive styles. | Automated scan, full keyboard review, documented 4.5:1 contrast audit. |
-| #36 | Daily backup/restore | Encrypted daily backup profile, retention, restore script and instructions. | Configure external storage, run backup and timed restore drill, record proof. |
-| #35 | Unit coverage | Maven/JaCoCo and scoring unit tests in CI. | Coverage is 1.9% line and 2.8% branch; reach 70% with meaningful tests. |
-| #34 | Browser support | Responsive layout with 360px minimum width. | Test latest two browser versions across Chrome/Firefox/Edge/Safari and record results. |
-| #33 | Usability | First-use flows are present in the UI. | Run and record the required five-person study; 90%/3-minute target is unverified. |
-| #32 | Per-attempt randomization | Stable deterministic question and option order per attempt when enabled. `AttemptRandomizationTest` verifies enabled ordering changes and stays stable across reads for an attempt, disabled ordering stays in stored order, saved answer values map through the randomized options, and answer keys are hidden before submission. | PostgreSQL 15 attempt reload/scoring integration remains unverified because the local Docker engine is unavailable. |
-| #31 | Admin summary | Admin-only persisted totals for active users, exams, attempts, and submitted attempts. `AdminSummaryControllerTest` covers persisted counts, zero totals, and the admin-only controller authorization annotation. | PostgreSQL 15 persisted-count integration and authenticated HTTP authorization remain unverified because the local Docker engine is unavailable. |
-| #30 | Teacher reports | Average/high/low/pass percentage and escaped CSV for owned exams. `ReportControllerTest` covers metrics, zero-result defaults, and teacher ownership; `ExamReportCsvTest` verifies quoting/escaping and rejects access to another teacher's exam. | PostgreSQL 15 aggregate and CSV integration tests remain unverified because the local Docker engine is unavailable. |
-| #10 | Group assignment | Group/membership schema, teacher/admin management API/UI, draft exam assignment, and student list/start eligibility checks. `ExamGroupControllerTest` covers assignment persistence, ownership, draft-only mutation, unassignment, and audit calls; `ExamStudentEligibilityTest` verifies published/group-filtered student listing and rejection of direct starts by unassigned students. | PostgreSQL 15 group visibility and direct-start integration tests remain unverified because the local Docker engine is unavailable. |
-| #9 | Question selection/negative marks | Reusable bank question assignment persists order and points overrides; negative mark percentage is stored and applied by scoring. `QuestionSelectionControllerTest` covers append order/override persistence, duplicate and published-exam rejection, removal and audit behavior; `ExamScoringServiceTest` covers zero, 25%, 33%, and 100% penalties, unanswered and multi-select answers, and final-score floor. | PostgreSQL 15 migration and persisted workflow/scoring integration remain unverified because the local Docker engine is unavailable. |
-| #8 | Question bank CRUD | Teacher UI/API supports create, list, edit, delete, and ownership/in-use protections. `QuestionBankControllerTest` covers all three types, list filtering, update/delete paths, ownership/use rejection, and validation errors. | PostgreSQL 15 CRUD/migration integration and browser workflow remain unverified locally. |
-| #7 | Teacher exam creation | Draft exam fields and validation for dates, duration, and marks. `ExamControllerPostgresTest` migrates an empty PostgreSQL 15.19 database through Flyway V1–V3 and verifies persisted draft fields, audit event, and validation before writes. | Browser-level create flow remains unverified. |
+Assignee checked: `ManojGaonkar05`
 
-PR #53 (TASK-01/TASK-02) and PR #57 (workflow and deliverables) were merged to `main` on 2026-11-19. GitHub Actions backend and frontend checks passed on the merge commit. Issues #48 and #49 closed with that merge; the other 13 assigned issues remain open pending the stated verification or evidence. This report does not claim unresolved work is complete.
+Status checked: 2026-11-20
+
+GitHub reports 15 assigned issues: #48 and #49 are closed; #7–#10 and #30–#39 (excluding #37) remain open. Open status is not the same as missing code: seven feature issues have implementation and focused-test PRs merged, but their issue records remain open. No acceptance criteria are marked complete here solely because code exists.
+
+## Issue evidence
+
+| Issue | Status and evidence | Remaining acceptance work |
+|---|---|---|
+| #48 — TASK-01 scaffold | Closed; PR #53 merged. Compose configuration validates with the existing local environment. | The live Compose check below covers a running stack; no new implementation needed. |
+| #49 — TASK-02 schema | Closed; PR #53 merged. Fresh PostgreSQL migration was previously exercised through Flyway V1–V2. | No new implementation identified. |
+| #7 — FR-06 teacher creates exam | Implementation merged in PR #57; follow-up test PR #58 merged. Exam draft validation/persistence tests passed. Live end-to-end smoke covered teacher draft creation. | Issue is still open in GitHub; owner acceptance/issue-state update remains. |
+| #8 — FR-07 question bank CRUD | Implementation merged in PR #57; follow-up tests merged in PR #60. Focused CRUD tests passed. Live smoke covered question creation. | Issue is still open in GitHub; owner acceptance/issue-state update remains. |
+| #9 — FR-08 question selection/negative marking | Implementation merged in PR #57; follow-up tests merged in PR #61. Selection/scoring tests passed. | Issue is still open in GitHub; PostgreSQL-specific verification and owner acceptance remain. |
+| #10 — FR-09 publish and group assignment | Implementation merged in PR #57; follow-up tests merged in PR #63. Live smoke covered assignment, publishing, student visibility, and direct start eligibility. | Issue is still open in GitHub; owner acceptance/issue-state update remains. |
+| #30 — FR-18 teacher reports and CSV | Implementation merged in PR #57; follow-up tests merged in PR #64. Report metrics, ownership, and CSV escaping tests passed; live smoke exercised report/CSV. | Issue is still open in GitHub; owner acceptance/issue-state update remains. |
+| #31 — FR-19 admin summary | Implementation merged in PR #57; follow-up tests merged in PR #65. Persisted summary count tests passed. | Issue is still open in GitHub; authenticated admin HTTP check and owner acceptance remain. |
+| #32 — FR-20 attempt randomization | Implementation merged in PR #57; follow-up tests merged in PR #66. Tests cover stable per-attempt order, disabled ordering, answer mapping, and answer-key hiding. | Issue is still open in GitHub; owner acceptance/issue-state update remains. |
+| #33 — NFR-05 usability | Login and exam-start flows are present. | The required first-time-student study has not been run. Collect participant timings and feedback; do not infer a 90% result. |
+| #34 — NFR-06 browser support | Edge 157 was checked at 360px; focused pages had no horizontal overflow. | The latest-two-version matrix for Chrome, Firefox, Edge, and Safari has not been run. Only Edge was available in the recorded local checks. |
+| #35 — NFR-08 coverage | Candidate branch `feature/nfr-08-coverage-improvements`, commit `95e98ab`, reports 70.64% line (296/419) and 51.06% branch (145/284) coverage. `mvn -B clean verify`: 70 tests, 0 failures/errors, 2 PostgreSQL/Testcontainers skips due to no Docker socket in Maven. | Candidate is not merged. Confirm coverage in CI and document exclusions before claiming acceptance. |
+| #36 — NFR-09 backup/restore | Branch `fix/nfr-09-backup-drill`, commit `1a8ddfb`; encrypted backup/restore drill recovered 13 tables and Flyway v2 in 4.8 seconds. | A continuous 24-hour schedule observation and independent off-host copy are not verified. |
+| #38 — NFR-10 accessibility | Candidate `fix/nfr-10-login-focus`, commit `a40bccc`; Edge 157 at 360px with axe-core reported zero WCAG 2.1 A/AA violations on audited sign-in, teacher, student, attempt, and results routes. Keyboard focus and scrollable table regions were checked. | Full supported-browser matrix, manual assistive-technology review, and complete rendered-state contrast audit remain. |
+| #39 — TASK-04 documentation/demo | Branch `docs/task-04-final-demo`, commits `df1a448` and `d84597c`; README, deviations, validation reports, presentation guide, and a 159.12-second 1280×720 demo video are pushed. Video was fully decoded without errors. | Candidate is not merged; faculty/repository-owner review remains. |
+
+## Current runtime and test evidence
+
+- `docker compose config -q` passed for the `origin/main` Compose file when supplied the existing local `.env` (values were not printed).
+- The existing demo containers are running: PostgreSQL and Redis report healthy; API `/actuator/health` reports `UP`; exposed API and frontend endpoints returned HTTP 200.
+- The backend candidate full verification passed as recorded for #35. Two database integration tests were skipped because the Maven container cannot access the Docker socket; they are not counted as passing.
+- A frontend Vite production build passed in the browser-compatibility worktree.
+- Previous live PostgreSQL/Redis smoke covered registration/login, teacher group/member and exam/question creation, assignment/publish, student attempt/save/submit, teacher report/CSV, and student denial from a teacher-only group route.
+
+## Submission state
+
+Candidate branches above are pushed and remain unmerged unless a later PR says otherwise. At the time of this report, the only open PRs returned by repository search were #51 and #62; neither is for these candidate branches. Earlier PR creation through the connected GitHub integration returned HTTP 403. No issues were closed in this update. Do not report open issues as accepted until the repository owner reviews the evidence and updates the issue state.
