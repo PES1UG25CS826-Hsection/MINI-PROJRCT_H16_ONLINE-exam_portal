@@ -22,8 +22,10 @@ public class DemoAccountSeeder implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
+        if (!environment.getProperty("DEMO_ACCOUNTS_ENABLED", Boolean.class, false)) return;
         seed("ADMIN", "DEMO_ADMIN_EMAIL", "DEMO_ADMIN_PASSWORD", "Demo Administrator");
         seed("TEACHER", "DEMO_TEACHER_EMAIL", "DEMO_TEACHER_PASSWORD", "Demo Teacher");
+        seed("STUDENT", "DEMO_STUDENT_EMAIL", "DEMO_STUDENT_PASSWORD", "Demo Student");
     }
 
     private void seed(String role, String emailKey, String passwordKey, String name) {
@@ -31,10 +33,7 @@ public class DemoAccountSeeder implements ApplicationRunner {
         String password = environment.getProperty(passwordKey, "");
         if (email.isBlank() || password.isBlank()) return;
         if (password.length() < 12) throw new IllegalStateException(passwordKey + " must be at least 12 characters when configured.");
-        Integer count = jdbc.queryForObject("SELECT COUNT(*) FROM users WHERE email=?", Integer.class, email);
-        if (count != null && count == 0) {
-            jdbc.update("INSERT INTO users(id,email,password_hash,full_name,role) VALUES (?,?,?,?,?)",
-                    UUID.randomUUID(), email, passwords.encode(password), name, role);
-        }
+        jdbc.update("INSERT INTO users(id,email,password_hash,full_name,role) VALUES (?,?,?,?,?) ON CONFLICT (email) DO NOTHING",
+                UUID.randomUUID(), email, passwords.encode(password), name, role);
     }
 }

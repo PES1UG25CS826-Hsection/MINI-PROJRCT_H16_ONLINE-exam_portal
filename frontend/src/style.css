@@ -122,7 +122,7 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .brand span { color: #85520e; }
 .account { display: flex; align-items: center; gap: 14px; color: #495b73; font-size: 13px; }
 .role-pill { border-radius: 99px; background: #e8eef8; color: #1d457d; font-size: 11px; font-weight: 800; padding: 5px 9px; }
-.tabs { display: flex; gap: 22px; border-bottom: 1px solid #dce4ee; }
+.tabs { display: flex; flex-wrap: wrap; gap: 4px 22px; border-bottom: 1px solid #dce4ee; }
 .tabs button { border: 0; border-bottom: 3px solid transparent; background: transparent; color: #596a81; padding: 15px 2px 12px; font-weight: 650; }
 .tabs button.selected { border-bottom-color: #1d4b83; color: #173c72; }
 .content { flex: 1; width: 100%; max-width: 1100px; margin: 0 auto; padding: 32px 0 54px; }
@@ -227,4 +227,4 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { border-color
 .report-grid span { color: #64748b; font-size: 12px; }
 .report-grid strong { color: #193d70; font-size: 20px; }
 @media (max-width: 700px) { .attempt-layout { grid-template-columns: 1fr; } .question-nav { padding: 16px; } .number-grid { grid-template-columns: repeat(8, 1fr); } .form-grid { grid-template-columns: 1fr; } .wide { grid-column: auto; } .page-heading { align-items: flex-start; } .account { gap: 7px; } .account > span:first-child { max-width: 120px; overflow-wrap: anywhere; } .footer span { display: none; } .panel { padding: 18px; } }
-@media (max-width: 420px) { .app-shell { padding: 0 14px; } .topbar { align-items: flex-start; padding: 16px 0; flex-direction: column; } .account { width: 100%; justify-content: space-between; } .tabs { gap: 16px; } .question-card { padding: 16px; } .attempt-top h1 { font-size: 21px; } .submit-bar { padding: 12px; } }
+@media (max-width: 420px) { .app-shell { padding: 0 14px; } .topbar { align-items: flex-start; padding: 16px 0; flex-direction: column; } .account { width: 100%; justify-content: space-between; } .tabs { gap: 4px 16px; } .question-card { padding: 16px; } .attempt-top h1 { font-size: 21px; } .submit-bar { padding: 12px; } }

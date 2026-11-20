@@ -33,12 +33,30 @@ A role-based online exam portal built with React, Spring Boot, PostgreSQL, and R
 ## Run with Docker Compose
 
 1. Install Docker Desktop with Compose enabled.
-2. Copy `.env.example` to `.env`. Change `POSTGRES_PASSWORD` and `TOKEN_SECRET` before sharing this environment.
-3. Start the services with `docker compose up --build`.
-4. Open <http://localhost:3000>. The API health endpoint is <http://localhost:3000/actuator/health>; the API is also available on port 8080 inside the Compose network.
-5. Stop the services with `docker compose down`. Add `-v` only when you also want to delete the local Postgres and Redis data volumes.
+2. Copy `.env.example` to `.env`, set a unique `POSTGRES_PASSWORD`, and set a unique `TOKEN_SECRET` of at least 32 characters before sharing or deploying the service. Public registration creates Student accounts only. Demo accounts are disabled by default. To enable local Admin, Teacher, and Student demo accounts, set `DEMO_ACCOUNTS_ENABLED=true` and set each `DEMO_*_EMAIL` plus a private `DEMO_*_PASSWORD` of at least 12 characters. Keep those secrets only in `.env`; never commit them. Seeding hashes passwords and skips existing email addresses.
+3. Run `docker compose up --build` from the repository root.
+4. Open <http://localhost:3000>. The web container proxies `/api/` and `/actuator/` to the API service on port 8080 inside the Compose network; health checks are at <http://localhost:3000/actuator/health> and <http://localhost:3000/api/health>.
+5. Stop with `docker compose down`. Add `-v` only when you also want to delete the local Postgres and Redis data volumes.
 
-The API runs Flyway migrations at startup. Hibernate is set to `ddl-auto: validate`, so schema changes belong in a new migration under `backend/src/main/resources/db/migration/` rather than automatic table generation. Set `TOKEN_SECRET` to a unique random value of at least 32 characters before sharing or deploying the service; the built-in value is only for local development.
+The API runs Flyway migrations at startup. Hibernate is set to `ddl-auto: validate`, so schema changes belong in a new migration under `backend/src/main/resources/db/migration/` rather than automatic table generation.
+
+### Registration and sign in
+
+Open the portal and choose **Create account**. Enter a full name, valid email, and a password with at least 10 characters, an uppercase letter, a number, and a symbol; confirm the password and register. Public registration always assigns the Student role. After the success message, use the returned **Sign in** link and log in with the new credentials. There is no password-recovery endpoint, so the login page does not show a nonfunctional recovery link.
+
+For a local faculty demo, enable seeding and provide credentials in `.env` (examples are shown with blank password values in `.env.example`):
+
+```dotenv
+DEMO_ACCOUNTS_ENABLED=true
+DEMO_ADMIN_EMAIL=admin@example.test
+DEMO_ADMIN_PASSWORD=<private password of at least 12 characters>
+DEMO_TEACHER_EMAIL=teacher@example.test
+DEMO_TEACHER_PASSWORD=<private password of at least 12 characters>
+DEMO_STUDENT_EMAIL=student@example.test
+DEMO_STUDENT_PASSWORD=<private password of at least 12 characters>
+```
+
+Restart the API after changing these settings. The accounts are created once with BCrypt-hashed passwords; repeated starts do not duplicate existing email addresses. Teacher and Admin routes are enforced by backend role checks. Do not use demo credentials on a shared or public deployment.
 
 ### Encrypted database backups
 
@@ -50,6 +68,7 @@ Set `BACKUP_AGE_RECIPIENT` in `.env` to an `age` public key and run `docker comp
 - Frontend: install Node.js 22, then run `npm ci`, `npm run dev` from `frontend/`.
 - Backend checks and coverage: run `mvn verify` from `backend/`. The JaCoCo HTML report is generated under `backend/target/site/jacoco/`.
 - Frontend production build: run `npm ci` and `npm run build` from `frontend/`.
+- Browser and accessibility checks: run `npm ci` and `npm run test:browser` from `frontend/`. Playwright uses Microsoft Edge; install/configure the browser channel before running it on a new machine. The suite uses API stubs for UI checks and is not an end-to-end live API test.
 
 CI runs the backend Maven verification and frontend production build on pushes and pull requests. Database migrations are applied by Flyway at API startup; Hibernate validates the schema rather than creating tables automatically.
 
@@ -57,16 +76,15 @@ CI runs the backend Maven verification and frontend production build on pushes a
 
 The current code includes student registration and login, token-based sessions, login throttling/temporary lockout, role-protected teacher/admin APIs, a reusable question bank, exam draft/publish and student-group assignment, student exam attempts with answer saving and review flags, scoring/results, teacher metrics/CSV export, an admin summary/user creation, and a responsive role-based web UI.
 
-## Validation status (2026-11-19)
+## Validation status (2026-11-20)
 
-- Backend: Maven `verify` completed; 5 scoring unit tests passed, 0 failed.
-- Frontend: Vite production build completed successfully.
-- System validation: not run. Docker was unavailable in the build environment, so PostgreSQL/Redis-backed workflows were not exercised end-to-end.
-- Backend line coverage: 1.9%; branch coverage: 2.8%. The Test Plan target of 70% is not met. Current tests cover only the scoring service.
-- The group and question-bank workflows are implemented in code but have not yet been validated end-to-end. Scheduling/timer edge cases, security tests, accessibility checks, and load/recovery targets also require further evidence.
-- The automated encrypted backup profile and restore procedure are documented, but no timed restore drill or external backup copy has been verified.
+- Backend on the local authentication worktree: Maven `verify` passed with 72 tests, 0 failures/errors/skips. PostgreSQL 15 Testcontainers migration/persistence tests ran. JaCoCo reported 72.00% line and 50.71% branch coverage; the 70% line gate passed. Boot jar repackaging was skipped because Windows temporarily held the artifact open.
+- Frontend: Vite production build passed against the modified authentication screens. No standalone frontend test runner is configured.
+- Backend role checks verify that a Student cannot invoke teacher or Admin controller methods. Signup, hashed password handling, duplicate handling, seeding and bearer authentication have focused tests.
+- An isolated PostgreSQL 15/Redis 7 smoke test verified signup and login, proper duplicate/weak-password statuses, BCrypt hashes, role denials, Admin/Teacher access and idempotent demo seeding after API restart. The full API/web Docker image build was not completed because Docker base-image downloads were very slow; the Vite production build and host API integration passed.
+- The usability report is simulated only; no student participants were recruited. Automated browser evidence is limited to Edge 157 and the pages listed in `docs/NFR06_BROWSER_COMPATIBILITY.md`; no Chrome/Firefox/Safari or manual cross-browser tests are claimed. Axe scans are limited to sign-in and the Student dashboard; manual keyboard, contrast and screen-reader audits remain pending. The isolated backup restore drill was not completed in this verification; off-site storage is deployment configuration.
 
-See [`docs/UPDATED_TEST_CASES.md`](docs/UPDATED_TEST_CASES.md) and the four reports in [`docs/`](docs/) for the actual test evidence and pending validation. Reports clearly distinguish passing unit tests from system cases that have not been executed.
+See [`docs/UPDATED_TEST_CASES.md`](docs/UPDATED_TEST_CASES.md), the [faculty demonstration guide](docs/FACULTY_DEMONSTRATION_GUIDE.md), and the reports in [`docs/`](docs/) for test evidence and pending validation. Reports distinguish passing checks from work that has not been executed.
 
 See [`docs/DEVIATIONS.md`](docs/DEVIATIONS.md) for known scope and evidence gaps, and [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md) for the two-minute demo script. The script is not a recorded demo video.
 

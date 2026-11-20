@@ -6,6 +6,9 @@ target/
 # Node
 node_modules/
 frontend/dist/
+frontend/test-results/
+frontend/playwright-report/
+.pw-browser-temp/
 npm-debug.log*
 
 # Local environment and IDE files
