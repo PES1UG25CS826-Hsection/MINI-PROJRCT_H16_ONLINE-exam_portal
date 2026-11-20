@@ -65,6 +65,8 @@ class AttemptRandomizationTest {
     }
 
     private void stubAttempt(boolean randomizeQuestions, boolean randomizeOptions) throws Exception {
+        when(jdbc.queryForObject(eq("SELECT now()"), any(RowMapper.class)))
+                .thenReturn(Instant.parse("2026-11-20T10:00:00Z"));
         ResultSet attemptRow = mock(ResultSet.class);
         when(attemptRow.getObject("exam_id", UUID.class)).thenReturn(examId);
         when(attemptRow.getString("status")).thenReturn("IN_PROGRESS");
