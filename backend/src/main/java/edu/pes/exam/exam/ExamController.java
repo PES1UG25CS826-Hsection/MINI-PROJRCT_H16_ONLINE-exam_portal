@@ -140,8 +140,7 @@ public class ExamController {
         return Map.of("id",examId,"status","DRAFT");
     }
 
-    @PostMapping("/exams/{examId}/attempts")
-    @PreAuthorize("hasRole('STUDENT')")
+    // Retained for compatibility with direct controller tests; HTTP routes are owned by PortalController.
     @Transactional
     public Map<String,Object> start(@PathVariable UUID examId,@AuthenticationPrincipal PortalPrincipal user,HttpServletRequest request) {
         ExamRow exam=exam(examId);
@@ -160,14 +159,10 @@ public class ExamController {
         return attemptView(attempt,user,true);
     }
 
-    @GetMapping("/attempts/{attemptId}")
-    @PreAuthorize("hasRole('STUDENT')")
     public Map<String,Object> getAttempt(@PathVariable UUID attemptId,@AuthenticationPrincipal PortalPrincipal user) {
         return attemptView(attemptId,user,true);
     }
 
-    @PutMapping("/attempts/{attemptId}/answers/{questionId}")
-    @PreAuthorize("hasRole('STUDENT')")
     @Transactional
     public Map<String,Object> saveAnswer(@PathVariable UUID attemptId,@PathVariable UUID questionId,
                                         @Valid @RequestBody AnswerRequest req,@AuthenticationPrincipal PortalPrincipal user) {
@@ -186,8 +181,6 @@ public class ExamController {
         return Map.of("saved",true,"savedAt",Instant.now());
     }
 
-    @PostMapping("/attempts/{attemptId}/submit")
-    @PreAuthorize("hasRole('STUDENT')")
     @Transactional
     public Map<String,Object> submit(@PathVariable UUID attemptId,@AuthenticationPrincipal PortalPrincipal user,HttpServletRequest request) {
         var attemptRows=jdbc.query("SELECT a.exam_id,a.status,a.started_at,a.submitted_at,e.duration_minutes,e.ends_at,e.total_marks,e.passing_marks,e.negative_mark_percent FROM attempts a JOIN exams e ON e.id=a.exam_id WHERE a.id=? AND a.student_id=? FOR UPDATE OF a",

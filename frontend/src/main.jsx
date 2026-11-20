@@ -1,141 +1,309 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './style.css';
 
-const SESSION_KEY = 'online-exam-session';
-function loadSession() { try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); } catch { return null; } }
+const SESSION_KEY = 'exam-portal-session';
+const LEGACY_SESSION_KEY = 'online-exam-session';
+const queueKey = (id) => `exam-portal-pending:${id}`;
 
-async function api(path, options = {}, token = null) {
-  const response = await fetch(path, { ...options, headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}), ...options.headers } });
-  if (response.status === 204) return null;
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(body.detail || body.message || `Request failed (${response.status})`);
-  return body;
+function loadSession() {
+  try { return JSON.parse(localStorage.getItem(SESSION_KEY) || localStorage.getItem(LEGACY_SESSION_KEY) || 'null'); } catch { return null; }
 }
 
 function App() {
   const [session, setSession] = useState(loadSession);
-  const [tab, setTab] = useState('home');
-  const [notice, setNotice] = useState('');
+  const [groups, setGroups] = useState({ upcoming: [], available: [], completed: [] });
+  const [attempt, setAttempt] = useState(null);
+  const [result, setResult] = useState(null);
+  const [activeQuestion, setActiveQuestion] = useState(0);
+  const [remaining, setRemaining] = useState(0);
+  const [authMode, setAuthMode] = useState('login');
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [saveState, setSaveState] = useState('');
+  const lastAutosave = useRef(Date.now());
+  const flushing = useRef(false);
+  const submitting = useRef(false);
+  const attemptHeadingRef = useRef(null);
+  const resultHeadingRef = useRef(null);
+  const dashboardHeadingRef = useRef(null);
+
+  const api = useCallback(async (path, options = {}) => {
+    const response = await fetch(`/api${path}`, {
+      ...options,
+      headers: { 'Content-Type': 'application/json', ...((session?.accessToken || session?.token) ? { Authorization: `Bearer ${session.accessToken || session.token}` } : {}), ...options.headers },
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.detail || data.message || 'The request could not be completed.');
+    return data;
+  }, [session]);
+
+  const loadExams = useCallback(async () => {
+    const data = await api('/student/exams');
+    setGroups(data.groups);
+    const active = [...data.groups.upcoming, ...data.groups.available].find((exam) => exam.active_attempt);
+    if (active?.active_attempt) await openAttempt(active.active_attempt);
+  }, [api]);
+
+  const openAttempt = useCallback(async (id) => {
+    const data = await api(`/attempts/${id}`);
+    if (data.status === 'IN_PROGRESS') {
+      const pending = JSON.parse(localStorage.getItem(queueKey(id)) || '{}');
+      const questions = data.questions.map((question) => ({ ...question, answer: Object.hasOwn(pending, question.id) ? pending[question.id].answer : question.answer, marked_for_review: Object.hasOwn(pending, question.id) ? pending[question.id].markedForReview : question.marked_for_review }));
+      setAttempt({ ...data, questions }); setRemaining(data.remainingSeconds); setResult(null);
+      const firstUnanswered = questions.findIndex((question) => question.answer === null || question.answer === undefined);
+      setActiveQuestion(Math.max(0, firstUnanswered));
+      await flushPending(id);
+    } else {
+      setAttempt(null); setResult(data.result || await api(`/attempts/${id}/result`));
+    }
+    setError('');
+  }, [api]);
+
+  const flushPending = useCallback(async (id) => {
+    if (!session?.accessToken || !navigator.onLine || flushing.current) return;
+    flushing.current = true;
+    setSaveState('Saving answers…');
+    try {
+      while (navigator.onLine) {
+        const pending = JSON.parse(localStorage.getItem(queueKey(id)) || '{}');
+        const [questionId, item] = Object.entries(pending)[0] || [];
+        if (!questionId) break;
+        await api(`/attempts/${id}/answers/${questionId}`, { method: 'PUT', body: JSON.stringify(item) });
+        const latest = JSON.parse(localStorage.getItem(queueKey(id)) || '{}');
+        if (latest[questionId]?.updatedAt === item.updatedAt) delete latest[questionId];
+        localStorage.setItem(queueKey(id), JSON.stringify(latest));
+      }
+      lastAutosave.current = Date.now();
+      const remaining = JSON.parse(localStorage.getItem(queueKey(id)) || '{}');
+      setSaveState(Object.keys(remaining).length ? 'Offline — answers are saved on this device and will sync when you reconnect.' : 'All answers saved');
+    } catch (err) {
+      setSaveState(navigator.onLine ? err.message : 'Offline — answers are saved on this device and will sync when you reconnect.');
+    } finally {
+      flushing.current = false;
+    }
+  }, [api, session]);
+
+  useEffect(() => { if (session?.user?.role === 'STUDENT') loadExams().catch((err) => setError(err.message)); }, [session, loadExams]);
+  useEffect(() => {
+    if (!session) return;
+    const target = attempt ? attemptHeadingRef.current : result ? resultHeadingRef.current : dashboardHeadingRef.current;
+    target?.focus();
+  }, [session?.accessToken, attempt?.id, Boolean(result)]);
+  useEffect(() => {
+    const online = () => { if (attempt) flushPending(attempt.id); };
+    window.addEventListener('online', online);
+    return () => window.removeEventListener('online', online);
+  }, [attempt, flushPending]);
+
+  useEffect(() => {
+    if (!attempt || attempt.status !== 'IN_PROGRESS') return undefined;
+    const timer = window.setInterval(() => setRemaining((seconds) => Math.max(0, seconds - 1)), 1000);
+    return () => window.clearInterval(timer);
+  }, [attempt]);
+
+  useEffect(() => {
+    if (!attempt || attempt.status !== 'IN_PROGRESS') return undefined;
+    const poll = window.setInterval(() => {
+      if (Date.now() - lastAutosave.current >= 25000) flushPending(attempt.id);
+      if (remaining <= 1) submitAttempt(true).catch((err) => setError(err.message));
+    }, 1000);
+    return () => window.clearInterval(poll);
+  }, [attempt, remaining, flushPending]);
+
+  async function authenticate(event) {
+    event.preventDefault(); setBusy(true); setError('');
+    const form = new FormData(event.currentTarget);
+    const body = Object.fromEntries(form.entries());
+    try {
+      const data = await api(`/auth/${authMode === 'register' ? 'register' : 'login'}`, { method: 'POST', body: JSON.stringify(body) });
+      localStorage.setItem(SESSION_KEY, JSON.stringify(data)); setSession(data); setNotice(`Welcome, ${data.user.name}.`);
+    } catch (err) { setError(err.message); }
+    finally { setBusy(false); }
+  }
+
+  function signOut() {
+    localStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem(LEGACY_SESSION_KEY);
+    if (attempt) localStorage.removeItem(queueKey(attempt.id));
+    setSession(null); setAttempt(null); setResult(null); setGroups({ upcoming: [], available: [], completed: [] });
+  }
+
+  async function beginExam(exam) {
+    setBusy(true); setError('');
+    try { const data = await api(`/exams/${exam.id}/attempts`, { method: 'POST' }); await openAttempt(data.id); }
+    catch (err) { setError(err.message); }
+    finally { setBusy(false); }
+  }
+
+  function updateAnswer(question, answer, markedForReview = question.marked_for_review) {
+    const id = attempt.id;
+    const item = { answer, markedForReview, updatedAt: Date.now() };
+    const pending = JSON.parse(localStorage.getItem(queueKey(id)) || '{}'); pending[question.id] = item;
+    localStorage.setItem(queueKey(id), JSON.stringify(pending));
+    setAttempt((current) => ({ ...current, questions: current.questions.map((q) => q.id === question.id ? { ...q, answer, marked_for_review: markedForReview } : q) }));
+    setSaveState(navigator.onLine ? 'Answer saved on this device; syncing…' : 'Offline — answer saved on this device.');
+    if (navigator.onLine) window.setTimeout(() => flushPending(id), 250);
+  }
+
+  function toggleOption(question, option) {
+    const selected = Array.isArray(question.answer) ? question.answer : [];
+    const next = selected.includes(option) ? selected.filter((item) => item !== option) : [...selected, option];
+    updateAnswer(question, next);
+  }
+
+  async function submitAttempt(automatic = false) {
+    if (!attempt) return;
+    if (!automatic && !window.confirm('Submit this exam now? You will not be able to change your answers after submission.')) return;
+    if (submitting.current) return;
+    submitting.current = true;
+    setBusy(true); setError('');
+    try {
+      await flushPending(attempt.id);
+      const pending = JSON.parse(localStorage.getItem(queueKey(attempt.id)) || '{}');
+      if (Object.keys(pending).length) throw new Error('Some answers have not reached the server yet. Reconnect and try submitting again.');
+      const submitted = await api(`/attempts/${attempt.id}/submit`, { method: 'POST' });
+      setResult(submitted); setAttempt(null); setNotice(automatic ? 'Your time ended and the exam was submitted.' : 'Your exam has been submitted.');
+      localStorage.removeItem(queueKey(attempt.id)); await loadExams();
+    } catch (err) { setError(err.message); }
+    finally { submitting.current = false; setBusy(false); }
+  }
+
+  const unanswered = useMemo(() => attempt?.questions.filter((q) => q.answer === null || q.answer === undefined || (Array.isArray(q.answer) && q.answer.length === 0) || q.answer === '').length || 0, [attempt]);
+  const formatTime = (seconds) => `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+
+  if (session?.user?.role && session.user.role !== 'STUDENT') {
+    return <ManagementPortal session={session} onSignOut={signOut} />;
+  }
+
+  if (!session) return <main className="auth-shell">
+    <a className="brand" href="#home">EXAM<span>PORTAL</span></a>
+    <div className="auth-card" id="main-content" tabIndex="-1">
+      <p className="eyebrow">ONLINE EXAMINATION</p>
+      <h1>{authMode === 'login' ? 'Welcome back.' : 'Create your student account.'}</h1>
+      <p className="muted">{authMode === 'login' ? 'Sign in to see your assessments and results.' : 'Your exams and progress, all in one place.'}</p>
+      <form onSubmit={authenticate} className="auth-form">
+        {authMode === 'register' && <label>Full name<input name="fullName" autoComplete="name" required maxLength="160" /></label>}
+        <label>Email address<input name="email" type="email" autoComplete="email" required /></label>
+        <label>Password<input name="password" type="password" autoComplete={authMode === 'login' ? 'current-password' : 'new-password'} minLength="10" required /></label>
+        {authMode === 'register' && <p className="muted">Use 10 or more characters with an uppercase letter, a number, and a symbol.</p>}
+        {error && <p className="error" role="alert">{error}</p>}
+        <button className="primary" disabled={busy}>{busy ? 'Please wait…' : authMode === 'login' ? 'Sign in' : 'Create account'} <span aria-hidden="true">→</span></button>
+      </form>
+      <p className="switch-auth">{authMode === 'login' ? 'New to the portal?' : 'Already have an account?'} <button className="text-button" onClick={() => { setAuthMode(authMode === 'login' ? 'register' : 'login'); setError(''); }}>{authMode === 'login' ? 'Create an account' : 'Sign in'}</button></p>
+    </div>
+    <footer><span>Online Exam Portal</span><span>Built for focused learning</span></footer>
+  </main>;
+
+  return <main className="app-shell" id="main-content" tabIndex="-1">
+    <nav className="topbar"><a className="brand" href="#home">EXAM<span>PORTAL</span></a><div className="user-tools"><span>{session.user.name}</span><button className="quiet-button" onClick={signOut}>Sign out</button></div></nav>
+    {error && <div className="banner error-banner" role="alert">{error}<button onClick={() => setError('')} aria-label="Dismiss">×</button></div>}
+    {notice && <div className="banner success-banner" role="status">{notice}<button onClick={() => setNotice('')} aria-label="Dismiss">×</button></div>}
+    {attempt ? <section className="exam-view" aria-label="Exam attempt">
+      <header className="exam-header"><div><p className="eyebrow">EXAM IN PROGRESS</p><h1 ref={attemptHeadingRef} tabIndex="-1">Assessment</h1><p className="muted">Your answers save as you work. You can return to any question.</p></div><div className={`timer ${remaining < 300 ? 'urgent' : ''}`} aria-live="polite"><span>TIME REMAINING</span><strong>{formatTime(remaining)}</strong></div></header>
+      <div className="exam-layout">
+        <aside className="question-nav"><h2>Questions</h2><p className="muted small">{attempt.questions.length - unanswered} of {attempt.questions.length} answered</p><div className="question-grid">{attempt.questions.map((q, i) => <button key={q.id} aria-label={`Question ${i + 1}${q.answer != null ? ', answered' : ', unanswered'}${q.marked_for_review ? ', marked for review' : ''}`} aria-current={activeQuestion === i ? 'step' : undefined} className={`question-chip ${activeQuestion === i ? 'current' : ''} ${q.answer != null ? 'answered' : ''} ${q.marked_for_review ? 'review' : ''}`} onClick={() => setActiveQuestion(i)}>{i + 1}</button>)}</div><div className="legend"><span><i className="dot done" /> Answered</span><span><i className="dot flag" /> Review</span><span><i className="dot" /> Unanswered</span></div></aside>
+        <article className="question-card">
+          {attempt.questions[activeQuestion] ? <>
+            <div className="question-meta"><span>QUESTION {activeQuestion + 1} OF {attempt.questions.length}</span><span>{attempt.questions[activeQuestion].points} {Number(attempt.questions[activeQuestion].points) === 1 ? 'point' : 'points'}</span></div>
+            <h2>{attempt.questions[activeQuestion].prompt}</h2>
+            <div className="answer-options">{(attempt.questions[activeQuestion].options || []).map((option, i) => {
+              const value = typeof option === 'object' ? option.id ?? option.value ?? option.text : option;
+              const label = typeof option === 'object' ? option.text ?? option.label ?? option.value : option;
+              const question = attempt.questions[activeQuestion];
+              const multiSelect = question.question_type === 'MULTI_SELECT';
+              const selected = multiSelect ? (Array.isArray(question.answer) && question.answer.includes(value)) : question.answer === value;
+              return <label key={String(value)} className={`option ${selected ? 'selected' : ''}`}><input type={multiSelect ? 'checkbox' : 'radio'} name={question.id} checked={selected} onChange={() => multiSelect ? toggleOption(question, value) : updateAnswer(question, value)} /><span className="option-letter">{String.fromCharCode(65 + i)}</span><span>{label}</span></label>;
+            })}</div>
+            {attempt.questions[activeQuestion].question_type === 'SHORT_ANSWER' && <label className="short-answer">Your answer<textarea rows="4" value={attempt.questions[activeQuestion].answer ?? ''} onChange={(event) => updateAnswer(attempt.questions[activeQuestion], event.target.value)} /></label>}
+            <div className="question-actions"><button className={`review-button ${attempt.questions[activeQuestion].marked_for_review ? 'marked' : ''}`} onClick={() => updateAnswer(attempt.questions[activeQuestion], attempt.questions[activeQuestion].answer, !attempt.questions[activeQuestion].marked_for_review)}>{attempt.questions[activeQuestion].marked_for_review ? '★ Marked for review' : '☆ Mark for review'}</button><span className="save-status" aria-live="polite">{saveState}</span></div>
+            <div className="pager"><button className="secondary" disabled={activeQuestion === 0} onClick={() => setActiveQuestion((n) => n - 1)}>← Previous</button><button className="primary" onClick={() => activeQuestion < attempt.questions.length - 1 ? setActiveQuestion((n) => n + 1) : submitAttempt(false)}>{activeQuestion < attempt.questions.length - 1 ? 'Next question →' : 'Review and submit'}</button></div>
+          </> : <p>This exam has no questions.</p>}
+        </article>
+      </div>
+      <div className="submit-row"><span>{unanswered ? `${unanswered} unanswered question${unanswered === 1 ? '' : 's'}` : 'You have answered every question'}</span><button className="danger-button" disabled={busy} onClick={() => submitAttempt(false)}>Submit exam</button></div>
+    </section> : result ? <section className="result-card"><div className="result-icon">✓</div><p className="eyebrow">EXAM COMPLETE</p><h1 ref={resultHeadingRef} tabIndex="-1">{result.passed ? 'Well done.' : 'Assessment submitted.'}</h1><p className="muted">Your result has been recorded.</p><div className="score-line"><strong>{result.score}<small> / {result.maxScore}</small></strong><span>{result.percentage}%</span></div><span className={`result-pill ${result.passed ? 'pass' : 'fail'}`}>{result.passed ? 'PASS' : 'NOT PASSED'}</span>{result.questions?.length > 0 && <section className="review-results" aria-label="Question review"><h2>Question review</h2>{result.questions.map((question,index) => <article key={question.question_id}><div className="review-result-heading"><strong>Question {index + 1}</strong><span className={question.is_correct ? 'answer-correct' : 'answer-incorrect'}>{question.is_correct ? 'Correct' : 'Review'}</span></div><p>{question.prompt}</p><dl><div><dt>Your answer</dt><dd>{formatAnswer(question.answer)}</dd></div><div><dt>Correct answer</dt><dd>{formatAnswer(question.correct_answer)}</dd></div></dl></article>)}</section>}<div className="result-footer"><button className="primary" onClick={() => { setResult(null); loadExams(); }}>Back to my exams</button></div></section> : <section className="dashboard">
+      <div className="dashboard-heading"><div><p className="eyebrow">STUDENT DASHBOARD</p><h1 ref={dashboardHeadingRef} tabIndex="-1">Your exams, at a glance.</h1><p className="muted">Pick up where you left off, or see what’s coming next.</p></div><button className="quiet-button" onClick={() => loadExams().catch((err) => setError(err.message))}>Refresh ↻</button></div>
+      <ExamGroup title="Available now" items={groups.available} onStart={beginExam} busy={busy} actionLabel="Start exam" />
+      <ExamGroup title="Upcoming" items={groups.upcoming} onStart={() => {}} busy={busy} actionLabel="Opens later" />
+      <ExamGroup title="Completed" items={groups.completed} onStart={async (exam) => { try { setResult(await api(`/attempts/${exam.latest_attempt}/result`)); } catch (err) { setError(err.message); } }} busy={busy} actionLabel="View result" />
+      {!groups.upcoming.length && !groups.available.length && !groups.completed.length && <div className="empty-state"><div aria-hidden="true">✦</div><h2>No exams assigned yet</h2><p>When your teacher assigns an assessment, it will appear here.</p></div>}
+    </section>}
+    <footer className="app-footer"><span>Online Exam Portal</span><span>Server timed · Answers autosaved</span></footer>
+  </main>;
+}
+
+function ManagementPortal({ session, onSignOut }) {
+  const [tab, setTab] = useState('home');
   const [exams, setExams] = useState([]);
   const [results, setResults] = useState([]);
-  const [attempt, setAttempt] = useState(null);
-  const [answers, setAnswers] = useState({});
+  const [summary, setSummary] = useState(null);
   const [createdExam, setCreatedExam] = useState(null);
   const [report, setReport] = useState(null);
-  const [summary, setSummary] = useState(null);
-  const answerRef = useRef(answers);
+  const [notice, setNotice] = useState('');
+  const [error, setError] = useState('');
   const contentRef = useRef(null);
-  const attemptHeadingRef = useRef(null);
-  answerRef.current = answers;
-  const role = session?.user?.role;
-  const request = (path, options) => api(path, options, session?.token);
+  const role = session.user.role;
+  const token = session.accessToken || session.token;
 
-  async function refresh() {
-    if (!session) return;
+  const request = useCallback(async (path, options = {}) => {
+    const response = await fetch(path, {
+      ...options,
+      headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), Authorization: `Bearer ${token}`, ...options.headers },
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.detail || body.message || `Request failed (${response.status})`);
+    return body;
+  }, [token]);
+
+  const refresh = useCallback(async () => {
     try {
-      const [e, r] = await Promise.all([request('/api/exams'), request('/api/results')]);
-      setExams(e); setResults(r);
+      const [examRows, resultRows] = await Promise.all([request('/api/exams'), request('/api/results')]);
+      setExams(examRows); setResults(resultRows);
       if (role === 'ADMIN') setSummary(await request('/api/admin/summary'));
+      setError('');
     } catch (err) { setError(err.message); }
-  }
-  useEffect(() => { refresh(); }, [session?.token]);
-  useEffect(() => {
-    const target = attempt ? attemptHeadingRef.current : session ? contentRef.current : null;
-    target?.focus();
-  }, [session?.token, attempt?.id]);
+  }, [request, role]);
 
-  async function saveAnswers() {
-    if (!attempt) return;
-    await Promise.all(attempt.questions.map((q) => {
-      const answer = answerRef.current[q.id] || { answers: [], markedForReview: false };
-      return request(`/api/attempts/${attempt.id}/answers/${q.id}`, { method: 'PUT', body: JSON.stringify(answer) });
-    }));
-  }
-  useEffect(() => {
-    if (!attempt) return undefined;
-    const timer = window.setInterval(async () => {
-      const left = Math.max(0, Math.ceil((new Date(attempt.expiresAt).getTime() - Date.now()) / 1000));
-      setAttempt((old) => old ? { ...old, secondsLeft: left } : old);
-      if (left === 0) {
-        try {
-          await saveAnswers();
-          const result = await request(`/api/attempts/${attempt.id}/submit`, { method: 'POST' });
-          localStorage.removeItem('online-exam-attempt'); setAttempt(null);
-          setNotice(`Time ended. Submitted: ${result.score}/${result.maxScore}.`); await refresh();
-        } catch (err) { setError(err.message); }
-      }
-    }, 1000);
-    const autosave = window.setInterval(() => saveAnswers().catch((err) => setError(err.message)), 15000);
-    return () => { window.clearInterval(timer); window.clearInterval(autosave); };
-  }, [attempt?.id]);
+  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => { contentRef.current?.focus(); }, [tab]);
 
-  async function start(exam) {
-    try {
-      const next = await request(`/api/exams/${exam.id}/attempts`, { method: 'POST' });
-      setAttempt(next); setAnswers(Object.fromEntries(next.questions.map((q) => [q.id, { answers: q.answer || [], markedForReview: q.markedForReview || false }])));
-      localStorage.setItem('online-exam-attempt', JSON.stringify({ id: next.id, examTitle: next.examTitle })); setError('');
-    } catch (err) { setError(err.message); }
-  }
-  async function submit() {
-    if (!attempt || !window.confirm('Submit this exam? You cannot change your answers afterward.')) return;
-    try {
-      await saveAnswers(); const result = await request(`/api/attempts/${attempt.id}/submit`, { method: 'POST' });
-      localStorage.removeItem('online-exam-attempt'); setAttempt(null);
-      setNotice(`Submitted: ${result.score}/${result.maxScore} (${result.percentage}%). ${result.passed ? 'Pass' : 'Fail'}.`); await refresh();
-    } catch (err) { setError(err.message); }
-  }
-  async function signOut() {
-    try { await request('/api/auth/logout', { method: 'POST' }); } catch { /* Clear the browser copy even when the server is unavailable. */ }
-    localStorage.removeItem(SESSION_KEY); localStorage.removeItem('online-exam-attempt'); setSession(null); setAttempt(null);
-  }
-  if (!session) return <Auth onSuccess={(value) => { localStorage.setItem(SESSION_KEY, JSON.stringify(value)); setSession(value); setNotice('Welcome to the Online Exam Portal.'); setError(''); }} />;
-  if (attempt) return <AttemptView attempt={attempt} answers={answers} onChange={setAnswers} onSave={() => saveAnswers().then(() => setNotice('Answers saved.')).catch((err) => setError(err.message))} onSubmit={submit} error={error} headingRef={attemptHeadingRef} />;
+  const nav = [
+    ['home', 'Dashboard'],
+    ...(role === 'TEACHER' ? [['create', 'Create exam'], ['questions', 'Question bank']] : []),
+    ...(role === 'TEACHER' || role === 'ADMIN' ? [['groups', 'Student groups']] : []),
+    ['results', 'Results'],
+    ...(role === 'ADMIN' ? [['users', 'Users']] : []),
+  ];
 
-  return <><a className="skip-link" href="#main-content">Skip to main content</a><main className="app-shell">
-    <header className="topbar"><a className="brand" href="#home" onClick={() => setTab('home')}>EXAM<span>PORTAL</span></a><div className="account"><span>{session.user.email}</span><span className="role-pill">{role}</span><button className="quiet" onClick={signOut}>Sign out</button></div></header>
-    <nav className="tabs" aria-label="Portal sections"><button className={tab === 'home' ? 'selected' : ''} onClick={() => setTab('home')}>Dashboard</button>{role === 'STUDENT' && <button className={tab === 'results' ? 'selected' : ''} onClick={() => setTab('results')}>My results</button>}{role === 'TEACHER' && <><button className={tab === 'create' ? 'selected' : ''} onClick={() => setTab('create')}>Create exam</button><button className={tab === 'questions' ? 'selected' : ''} onClick={() => setTab('questions')}>Question bank</button></>}{(role === 'TEACHER'||role === 'ADMIN') && <button className={tab === 'groups' ? 'selected' : ''} onClick={() => setTab('groups')}>Student groups</button>}{role === 'ADMIN' && <button className={tab === 'users' ? 'selected' : ''} onClick={() => setTab('users')}>Users</button>}</nav>
+  return <main className="app-shell">
+    <header className="topbar"><a className="brand" href="#home" onClick={() => setTab('home')}>EXAM<span>PORTAL</span></a><div className="account"><span>{session.user.name || session.user.email}</span><span className="role-pill">{role}</span><button className="quiet" onClick={onSignOut}>Sign out</button></div></header>
+    <nav className="tabs" aria-label="Portal sections">{nav.map(([id, label]) => <button key={id} className={tab === id ? 'selected' : ''} onClick={() => setTab(id)}>{label}</button>)}</nav>
     <section ref={contentRef} className="content" id="main-content" tabIndex="-1">
       {notice && <div className="notice" role="status">{notice}<button aria-label="Dismiss notice" onClick={() => setNotice('')}>×</button></div>}
       {error && <div className="error" role="alert">{error}<button aria-label="Dismiss error" onClick={() => setError('')}>×</button></div>}
-      {tab === 'home' && role === 'STUDENT' && <StudentDashboard exams={exams} results={results} onStart={start} />}
       {tab === 'home' && role === 'TEACHER' && <TeacherDashboard exams={exams} request={request} onReport={setReport} onRefresh={refresh} />}
       {tab === 'home' && role === 'ADMIN' && <AdminDashboard summary={summary} />}
       {tab === 'results' && <Results results={results} />}
-      {tab === 'create' && <ExamBuilder request={request} exams={exams} createdExam={createdExam} setCreatedExam={setCreatedExam} onRefresh={refresh} setNotice={setNotice} setError={setError} />}
-      {tab === 'groups' && (role === 'TEACHER'||role === 'ADMIN') && <GroupManager request={request} />}
+      {tab === 'create' && role === 'TEACHER' && <ExamBuilder request={request} exams={exams} createdExam={createdExam} setCreatedExam={setCreatedExam} onRefresh={refresh} setNotice={setNotice} setError={setError} />}
+      {tab === 'groups' && <GroupManager request={request} />}
       {tab === 'questions' && role === 'TEACHER' && <QuestionBankManager request={request} />}
-      {tab === 'users' && <UserManager request={request} />}
+      {tab === 'users' && role === 'ADMIN' && <UserManager request={request} />}
       {report && <ReportModal data={report} onClose={() => setReport(null)} />}
     </section>
     <footer className="footer">Online Exam Portal <span>Exam information and results are saved by the server.</span></footer>
-  </main></>;
+  </main>;
 }
 
-function Auth({ onSuccess }) {
-  const [mode, setMode] = useState('login'); const [error, setError] = useState(''); const [notice, setNotice] = useState(''); const [busy, setBusy] = useState(false);
-  async function submit(event) {
-    event.preventDefault(); const form = event.currentTarget; setBusy(true); setError(''); const data = new FormData(form);
-    const body = mode === 'login' ? { email: data.get('email'), password: data.get('password') } : { fullName: data.get('fullName').trim(), email: data.get('email').trim(), password: data.get('password') };
-    if (mode === 'register' && body.password !== data.get('confirmPassword')) { setError('Passwords do not match.'); setBusy(false); return; }
-    if (mode === 'register' && !/^(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,128}$/.test(body.password)) { setError('Use at least 8 characters with an uppercase letter, a number, and a symbol.'); setBusy(false); return; }
-    try {
-      const result = await api(`/api/auth/${mode === 'login' ? 'login' : 'register'}`, { method: 'POST', body: JSON.stringify(body) });
-      if (mode === 'login') onSuccess(result);
-      else { form.reset(); setMode('login'); setNotice(result.message || 'Registration successful. Sign in with your new account.'); }
-    }
-    catch (err) { setError(err.message); } finally { setBusy(false); }
-  }
-  function switchMode(next) { setMode(next); setError(''); setNotice(''); }
-  return <><a className="skip-link" href="#auth-main">Skip to {mode === 'login' ? 'sign in' : 'registration'}</a><main className="auth-page"><section className="auth-card" id="auth-main" tabIndex="-1"><a className="brand" href="#">EXAM<span>PORTAL</span></a><p className="eyebrow">ONLINE EXAMINATION</p><h1>{mode === 'login' ? 'Welcome back.' : 'Create your student account.'}</h1><p className="muted">{mode === 'login' ? 'Sign in to access scheduled exams and results.' : 'Register as a student to access exams and results.'}</p>
-    {notice && <div className="notice" role="status">{notice}</div>}{error && <div className="error" role="alert">{error}</div>}<form onSubmit={submit} className="form-stack">{mode === 'register' && <label>Full name<input name="fullName" autoComplete="name" required maxLength="160" /></label>}<label>Email<input name="email" type="email" autoComplete="email" required maxLength="254" /></label><label>Password<input name="password" type="password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} minLength="8" maxLength="128" required /></label>{mode === 'register' && <><label>Confirm password<input name="confirmPassword" type="password" autoComplete="new-password" minLength="8" maxLength="128" required /></label><small>Use at least 8 characters with an uppercase letter, number, and symbol.</small></>}<button className="primary" disabled={busy}>{busy ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Register'}</button></form>
-    <p className="switch-auth">{mode === 'login' ? <>New student? <button type="button" className="link-button" onClick={() => switchMode('register')}>Create account</button></> : <>Already registered? <button type="button" className="link-button" onClick={() => switchMode('login')}>Return to Sign in</button></>}</p></section></main></>;
+function formatAnswer(value) {
+  if (value === null || value === undefined) return 'Not answered';
+  return typeof value === 'object' ? JSON.stringify(value) : String(value);
 }
 
-function StudentDashboard({ exams, results, onStart }) {
-  return <><div className="page-heading"><div><p className="eyebrow">STUDENT DASHBOARD</p><h1>Your exams</h1><p className="muted">Exams scheduled for your student account.</p></div><div className="stat"><strong>{results.length}</strong><span>completed</span></div></div>
-    {['Available', 'Upcoming', 'Completed'].map((group) => { const items = exams.filter((e) => e.state === group); return <section className="panel" key={group}><h2>{group}</h2>{!items.length ? <p className="empty">No {group.toLowerCase()} exams.</p> : <div className="exam-grid">{items.map((e) => <article className="exam-card" key={e.id}><div className="card-top"><span className="subject">{e.subject}</span><span>{e.durationMinutes} min</span></div><h3>{e.title}</h3><p>{new Date(e.startsAt).toLocaleString()}</p>{group === 'Available' && <button className="primary" onClick={() => onStart(e)}>Start exam</button>}</article>)}</div>}</section>; })}</>;
+function ExamGroup({ title, items, onStart, busy, actionLabel }) {
+  if (!items.length) return null;
+  return <section className="exam-group"><div className="group-heading"><h2>{title}</h2><span>{items.length}</span></div><div className="exam-list">{items.map((exam) => <article className="exam-row" key={exam.id}><div className="exam-symbol">✦</div><div className="exam-details"><h3>{exam.title}</h3><p>{exam.description || 'Online assessment'} · {exam.duration_minutes} minutes</p>{exam.starts_at && <p className="exam-date">{new Date(exam.starts_at).toLocaleString()}</p>}</div><span className={`status-tag ${exam.status === 'IN_PROGRESS' ? 'live' : ''}`}>{exam.status === 'IN_PROGRESS' ? 'In progress' : title === 'Upcoming' ? 'Upcoming' : title === 'Completed' ? 'Completed' : 'Available'}</span><button className="secondary" onClick={() => onStart(exam)} disabled={busy || title === 'Upcoming'}>{exam.status === 'IN_PROGRESS' ? 'Resume' : actionLabel} <span aria-hidden="true">→</span></button></article>)}</div></section>;
 }
 
 function TeacherDashboard({ exams, request, onReport, onRefresh }) {
@@ -185,11 +353,11 @@ function GroupManager({ request }) {
   return <><div className="page-heading"><div><p className="eyebrow">ELIGIBILITY</p><h1>Student groups</h1><p className="muted">Create class groups, add registered students, then assign groups to draft exams.</p></div></div>{message&&<div className="notice" role="status">{message}</div>}<section className="panel"><h2>Create group</h2><form className="form-grid" onSubmit={create}><label>Group name<input name="name" maxLength="120" required /></label><label>Description<input name="description" maxLength="500" /></label><button className="primary">Create group</button></form></section><section className="panel"><h2>Manage members</h2>{groups.length===0?<p className="empty">Create a group to add students.</p>:<><form className="inline-form" onSubmit={add}><label>Group<select value={selected} onChange={e=>setSelected(e.target.value)}>{groups.map(g=><option key={g.id} value={g.id}>{g.name} ({g.memberCount})</option>)}</select></label><label>Student email<input name="email" type="email" required /></label><button className="secondary">Add student</button></form><ul className="member-list">{members.map(m=><li key={m.id}>{m.fullName} <span>{m.email}</span><button className="text-action" onClick={()=>remove(m.id)}>Remove</button></li>)}</ul></>}</section></>;
 }
 
-function AttemptView({ attempt, answers, onChange, onSave, onSubmit, error, headingRef }) {
+function AttemptView({ attempt, answers, onChange, onSave, onSubmit, error }) {
   const [current,setCurrent]=useState(0);const q=attempt.questions[current];const total=attempt.secondsLeft??Math.max(0,Math.ceil((new Date(attempt.expiresAt)-Date.now())/1000));const mins=Math.floor(total/60);const secs=total%60;
   function choose(option,multi){const old=answers[q.id]||{answers:[],markedForReview:false};const values=multi?(old.answers.includes(option)?old.answers.filter(x=>x!==option):[...old.answers,option]):[option];onChange({...answers,[q.id]:{...old,answers:values}});}
   function mark(){const old=answers[q.id]||{answers:[],markedForReview:false};onChange({...answers,[q.id]:{...old,markedForReview:!old.markedForReview}});}
-  return <main className="attempt-page"><header className="attempt-top"><div><p className="eyebrow">EXAM IN PROGRESS</p><h1 ref={headingRef} tabIndex="-1">{attempt.examTitle}</h1></div><div className={`timer ${total<120?'urgent':''}`} aria-live="polite">{String(mins).padStart(2,'0')}:{String(secs).padStart(2,'0')}<small>remaining</small></div></header>{error&&<div className="error" role="alert">{error}</div>}
+  return <main className="attempt-page"><header className="attempt-top"><div><p className="eyebrow">EXAM IN PROGRESS</p><h1>{attempt.examTitle}</h1></div><div className={`timer ${total<120?'urgent':''}`} aria-live="polite">{String(mins).padStart(2,'0')}:{String(secs).padStart(2,'0')}<small>remaining</small></div></header>{error&&<div className="error" role="alert">{error}</div>}
     <div className="attempt-layout"><aside className="question-nav"><h2>Questions</h2><div className="number-grid">{attempt.questions.map((item,i)=><button key={item.id} className={`${i===current?'current':''} ${answers[item.id]?.answers?.length?'answered':''} ${answers[item.id]?.markedForReview?'marked':''}`} onClick={()=>setCurrent(i)} aria-label={`Question ${i+1}`}>{i+1}</button>)}</div><p className="legend"><span className="answered-dot"/> Answered <span className="marked-dot"/> Review</p></aside>
       <section className="question-card"><div className="card-top"><span>Question {current+1} of {attempt.questions.length}</span><span>{q.points} mark(s)</span></div><h2>{q.prompt}</h2><div className="choice-list">{q.options.map((option)=><label key={option} className={`choice ${(answers[q.id]?.answers||[]).includes(option)?'chosen':''}`}><input type={q.type==='MULTI_SELECT'?'checkbox':'radio'} name={`question-${q.id}`} checked={(answers[q.id]?.answers||[]).includes(option)} onChange={()=>choose(option,q.type==='MULTI_SELECT')} />{option}</label>)}</div><div className="question-actions"><button className="quiet" onClick={mark}>{answers[q.id]?.markedForReview?'Remove review mark':'Mark for review'}</button><button className="quiet" onClick={onSave}>Save now</button></div><div className="pager"><button className="secondary" disabled={current===0} onClick={()=>setCurrent(current-1)}>Previous</button><button className="secondary" disabled={current===attempt.questions.length-1} onClick={()=>setCurrent(current+1)}>Next question</button></div></section></div>
     <footer className="submit-bar"><span>{Object.values(answers).filter(v=>v.answers?.length).length} answered · {Object.values(answers).filter(v=>v.markedForReview).length} for review</span><button className="danger-button" onClick={onSubmit}>Submit exam</button></footer></main>;
