@@ -26,13 +26,14 @@ public class PortalService {
 
     public Map<String, List<Map<String, Object>>> exams(UUID studentId) {
         List<Map<String, Object>> items = jdbc.queryForList("""
-            SELECT e.id::text AS id,e.title,e.description,e.starts_at,e.ends_at,e.duration_minutes,
+            SELECT DISTINCT e.id::text AS id,e.title,e.description,e.starts_at,e.ends_at,e.duration_minutes,
                    (SELECT a.id::text FROM attempts a WHERE a.exam_id=e.id AND a.student_id=? AND a.status='IN_PROGRESS' ORDER BY a.attempt_number DESC LIMIT 1) AS active_attempt,
                    (SELECT a.id::text FROM attempts a WHERE a.exam_id=e.id AND a.student_id=? ORDER BY a.attempt_number DESC LIMIT 1) AS latest_attempt,
                    EXISTS(SELECT 1 FROM attempts a WHERE a.exam_id=e.id AND a.student_id=? AND a.status IN ('SUBMITTED','TIMED_OUT')) AS completed,
                    (SELECT count(*) FROM attempts a WHERE a.exam_id=e.id AND a.student_id=?) AS attempt_count
-            FROM exams e JOIN exam_assignments ea ON ea.exam_id=e.id
-            WHERE ea.student_id=? AND e.status='PUBLISHED' AND (e.ends_at IS NULL OR e.ends_at>now() OR EXISTS(SELECT 1 FROM attempts done WHERE done.exam_id=e.id AND done.student_id=? AND done.status IN ('SUBMITTED','TIMED_OUT')))
+            FROM exams e JOIN exam_groups eg ON eg.exam_id=e.id
+            JOIN group_members gm ON gm.group_id=eg.group_id AND gm.student_id=?
+            WHERE e.status='PUBLISHED' AND (e.ends_at IS NULL OR e.ends_at>now() OR EXISTS(SELECT 1 FROM attempts done WHERE done.exam_id=e.id AND done.student_id=? AND done.status IN ('SUBMITTED','TIMED_OUT')))
             ORDER BY e.starts_at NULLS FIRST,e.title
             """, studentId, studentId, studentId, studentId, studentId, studentId);
         var upcoming = new ArrayList<Map<String, Object>>();
@@ -57,7 +58,7 @@ public class PortalService {
         if (exams.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Exam not found");
         Map<String, Object> exam = exams.get(0);
         if (!"PUBLISHED".equals(exam.get("status"))) throw new ResponseStatusException(HttpStatus.CONFLICT, "This exam is not available");
-        if (jdbc.queryForObject("SELECT count(*) FROM exam_assignments WHERE exam_id=? AND student_id=?", Long.class, examId, studentId) == 0)
+        if (jdbc.queryForObject("SELECT count(*) FROM exam_groups eg JOIN group_members gm ON gm.group_id=eg.group_id WHERE eg.exam_id=? AND gm.student_id=?", Long.class, examId, studentId) == 0)
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This exam is not assigned to your account");
         OffsetTimes window = new OffsetTimes((java.time.OffsetDateTime) exam.get("starts_at"), (java.time.OffsetDateTime) exam.get("ends_at"), java.time.OffsetDateTime.ofInstant(databaseNow(), java.time.ZoneOffset.UTC));
         if (window.start() != null && window.now().isBefore(window.start())) throw new ResponseStatusException(HttpStatus.CONFLICT, "This exam has not started yet");
@@ -79,7 +80,7 @@ public class PortalService {
         List<Map<String, Object>> questions = jdbc.queryForList("""
             SELECT q.id::text AS id,q.prompt,q.question_type,q.options::text AS options,
                    COALESCE(eq.points_override,q.points) AS points,aa.answer::text AS answer,
-                   COALESCE(aa.is_marked_for_review,FALSE) AS marked_for_review
+                   COALESCE(aa.marked_for_review,FALSE) AS marked_for_review
             FROM attempts a JOIN exam_questions eq ON eq.exam_id=a.exam_id
             JOIN questions q ON q.id=eq.question_id
             LEFT JOIN attempt_answers aa ON aa.attempt_id=a.id AND aa.question_id=q.id
@@ -106,17 +107,17 @@ public class PortalService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Question is not part of this attempt");
         String answer = request.answer() == null ? "null" : writeJson(request.answer());
         jdbc.update("""
-            INSERT INTO attempt_answers(attempt_id,question_id,answer,is_marked_for_review,saved_at)
+            INSERT INTO attempt_answers(attempt_id,question_id,answer,marked_for_review,saved_at)
             VALUES (?,?,CAST(? AS jsonb),?,now())
             ON CONFLICT (attempt_id,question_id) DO UPDATE SET answer=EXCLUDED.answer,
-              is_marked_for_review=EXCLUDED.is_marked_for_review,saved_at=now()
+              marked_for_review=EXCLUDED.marked_for_review,saved_at=now()
             """, attemptId, questionId, answer, request.markedForReview());
         return Map.of("saved", true, "savedAt", databaseNow().toString());
     }
 
     @Transactional
     public Map<String, Object> submit(UUID studentId, UUID attemptId) {
-        List<Map<String, Object>> rows = jdbc.queryForList("SELECT a.id,a.exam_id,a.student_id,a.attempt_number,a.status,a.started_at,a.submitted_at,e.duration_minutes,e.ends_at,e.negative_marking,e.passing_marks FROM attempts a JOIN exams e ON e.id=a.exam_id WHERE a.id=? AND a.student_id=? FOR UPDATE OF a", attemptId, studentId);
+        List<Map<String, Object>> rows = jdbc.queryForList("SELECT a.id,a.exam_id,a.student_id,a.attempt_number,a.status,a.started_at,a.submitted_at,e.duration_minutes,e.ends_at,e.negative_mark_percent::numeric / 100 AS negative_marking,e.passing_marks FROM attempts a JOIN exams e ON e.id=a.exam_id WHERE a.id=? AND a.student_id=? FOR UPDATE OF a", attemptId, studentId);
         if (rows.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Attempt not found");
         Map<String,Object> a=rows.get(0);
         if (!"IN_PROGRESS".equals(a.get("status"))) return resultFor(studentId, attemptId);
@@ -135,7 +136,7 @@ public class PortalService {
 
     @Transactional
     public void expireIfNecessary(UUID attemptId, UUID studentId) {
-        List<Map<String,Object>> rows=jdbc.queryForList("SELECT a.id,a.exam_id,a.student_id,a.attempt_number,a.status,a.started_at,a.submitted_at,e.duration_minutes,e.ends_at,e.negative_marking,e.passing_marks FROM attempts a JOIN exams e ON e.id=a.exam_id WHERE a.id=? AND a.student_id=? AND a.status='IN_PROGRESS' FOR UPDATE OF a",attemptId,studentId);
+        List<Map<String,Object>> rows=jdbc.queryForList("SELECT a.id,a.exam_id,a.student_id,a.attempt_number,a.status,a.started_at,a.submitted_at,e.duration_minutes,e.ends_at,e.negative_mark_percent::numeric / 100 AS negative_marking,e.passing_marks FROM attempts a JOIN exams e ON e.id=a.exam_id WHERE a.id=? AND a.student_id=? AND a.status='IN_PROGRESS' FOR UPDATE OF a",attemptId,studentId);
         if (!rows.isEmpty()) {
             Map<String,Object> a=rows.get(0); Instant now=databaseNow();
             if (!now.isBefore(deadline(a))) gradeLocked(studentId,attemptId,a,now);
@@ -174,15 +175,15 @@ public class PortalService {
     }
 
     private Map<String,Object> resultFor(UUID studentId, UUID attemptId) {
-        List<Map<String,Object>> rows=jdbc.queryForList("SELECT r.score,r.max_score,r.percentage,r.passed,r.graded_at,a.status,e.show_question_review FROM results r JOIN attempts a ON a.id=r.attempt_id JOIN exams e ON e.id=a.exam_id WHERE r.attempt_id=? AND a.student_id=?",attemptId,studentId);
+        List<Map<String,Object>> rows=jdbc.queryForList("SELECT r.score,r.max_score,r.percentage,r.passed,r.graded_at,a.status,e.show_answers_after_submit FROM results r JOIN attempts a ON a.id=r.attempt_id JOIN exams e ON e.id=a.exam_id WHERE r.attempt_id=? AND a.student_id=?",attemptId,studentId);
         if (rows.isEmpty()) throw new ResponseStatusException(HttpStatus.CONFLICT,"This attempt has not been submitted");
         Map<String,Object> row=rows.get(0); var output=new LinkedHashMap<String,Object>();
         output.put("attemptId",attemptId.toString()); output.put("status",row.get("status")); output.put("score",row.get("score")); output.put("maxScore",row.get("max_score"));
         output.put("percentage",row.get("percentage")); output.put("passed",row.get("passed")); output.put("gradedAt",row.get("graded_at").toString());
-        if (Boolean.TRUE.equals(row.get("show_question_review"))) {
+        if (Boolean.TRUE.equals(row.get("show_answers_after_submit"))) {
             output.put("questions",jdbc.queryForList("""
                 SELECT q.id::text AS question_id,q.prompt,q.options::text AS options,q.correct_answer::text AS correct_answer,
-                       aa.answer::text AS answer,aa.is_correct,aa.awarded_points,aa.is_marked_for_review
+                       aa.answer::text AS answer,aa.is_correct,aa.awarded_points,aa.marked_for_review
                 FROM attempts a JOIN exam_questions eq ON eq.exam_id=a.exam_id JOIN questions q ON q.id=eq.question_id
                 LEFT JOIN attempt_answers aa ON aa.attempt_id=a.id AND aa.question_id=q.id
                 WHERE a.id=? ORDER BY eq.position
@@ -194,7 +195,7 @@ public class PortalService {
     }
 
     private Map<String,Object> ownedAttempt(UUID studentId, UUID attemptId) {
-        List<Map<String,Object>> rows=jdbc.queryForList("SELECT a.id,a.exam_id,a.student_id,a.attempt_number,a.status,a.started_at,a.submitted_at,e.duration_minutes,e.ends_at,e.negative_marking,e.passing_marks FROM attempts a JOIN exams e ON e.id=a.exam_id WHERE a.id=? AND a.student_id=?",attemptId,studentId);
+        List<Map<String,Object>> rows=jdbc.queryForList("SELECT a.id,a.exam_id,a.student_id,a.attempt_number,a.status,a.started_at,a.submitted_at,e.duration_minutes,e.ends_at,e.negative_mark_percent::numeric / 100 AS negative_marking,e.passing_marks FROM attempts a JOIN exams e ON e.id=a.exam_id WHERE a.id=? AND a.student_id=?",attemptId,studentId);
         if(rows.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND,"Attempt not found"); return rows.get(0);
     }
 

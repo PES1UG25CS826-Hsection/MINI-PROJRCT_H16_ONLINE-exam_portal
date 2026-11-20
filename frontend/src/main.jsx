@@ -3,12 +3,15 @@ import { createRoot } from 'react-dom/client';
 import './style.css';
 
 const SESSION_KEY = 'exam-portal-session';
+const LEGACY_SESSION_KEY = 'online-exam-session';
 const queueKey = (id) => `exam-portal-pending:${id}`;
 
+function loadSession() {
+  try { return JSON.parse(localStorage.getItem(SESSION_KEY) || localStorage.getItem(LEGACY_SESSION_KEY) || 'null'); } catch { return null; }
+}
+
 function App() {
-  const [session, setSession] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); } catch { return null; }
-  });
+  const [session, setSession] = useState(loadSession);
   const [groups, setGroups] = useState({ upcoming: [], available: [], completed: [] });
   const [attempt, setAttempt] = useState(null);
   const [result, setResult] = useState(null);
@@ -29,7 +32,7 @@ function App() {
   const api = useCallback(async (path, options = {}) => {
     const response = await fetch(`/api${path}`, {
       ...options,
-      headers: { 'Content-Type': 'application/json', ...(session?.accessToken ? { Authorization: `Bearer ${session.accessToken}` } : {}), ...options.headers },
+      headers: { 'Content-Type': 'application/json', ...((session?.accessToken || session?.token) ? { Authorization: `Bearer ${session.accessToken || session.token}` } : {}), ...options.headers },
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.detail || data.message || 'The request could not be completed.');
@@ -82,7 +85,7 @@ function App() {
     }
   }, [api, session]);
 
-  useEffect(() => { if (session) loadExams().catch((err) => setError(err.message)); }, [session, loadExams]);
+  useEffect(() => { if (session?.user?.role === 'STUDENT') loadExams().catch((err) => setError(err.message)); }, [session, loadExams]);
   useEffect(() => {
     if (!session) return;
     const target = attempt ? attemptHeadingRef.current : result ? resultHeadingRef.current : dashboardHeadingRef.current;
@@ -122,6 +125,7 @@ function App() {
 
   function signOut() {
     localStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem(LEGACY_SESSION_KEY);
     if (attempt) localStorage.removeItem(queueKey(attempt.id));
     setSession(null); setAttempt(null); setResult(null); setGroups({ upcoming: [], available: [], completed: [] });
   }
@@ -168,6 +172,10 @@ function App() {
 
   const unanswered = useMemo(() => attempt?.questions.filter((q) => q.answer === null || q.answer === undefined || (Array.isArray(q.answer) && q.answer.length === 0) || q.answer === '').length || 0, [attempt]);
   const formatTime = (seconds) => `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+
+  if (session?.user?.role && session.user.role !== 'STUDENT') {
+    return <ManagementPortal session={session} onSignOut={signOut} />;
+  }
 
   if (!session) return <main className="auth-shell">
     <a className="brand" href="#home">EXAM<span>PORTAL</span></a>
@@ -226,6 +234,68 @@ function App() {
   </main>;
 }
 
+function ManagementPortal({ session, onSignOut }) {
+  const [tab, setTab] = useState('home');
+  const [exams, setExams] = useState([]);
+  const [results, setResults] = useState([]);
+  const [summary, setSummary] = useState(null);
+  const [createdExam, setCreatedExam] = useState(null);
+  const [report, setReport] = useState(null);
+  const [notice, setNotice] = useState('');
+  const [error, setError] = useState('');
+  const contentRef = useRef(null);
+  const role = session.user.role;
+  const token = session.accessToken || session.token;
+
+  const request = useCallback(async (path, options = {}) => {
+    const response = await fetch(path, {
+      ...options,
+      headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), Authorization: `Bearer ${token}`, ...options.headers },
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.detail || body.message || `Request failed (${response.status})`);
+    return body;
+  }, [token]);
+
+  const refresh = useCallback(async () => {
+    try {
+      const [examRows, resultRows] = await Promise.all([request('/api/exams'), request('/api/results')]);
+      setExams(examRows); setResults(resultRows);
+      if (role === 'ADMIN') setSummary(await request('/api/admin/summary'));
+      setError('');
+    } catch (err) { setError(err.message); }
+  }, [request, role]);
+
+  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => { contentRef.current?.focus(); }, [tab]);
+
+  const nav = [
+    ['home', 'Dashboard'],
+    ...(role === 'TEACHER' ? [['create', 'Create exam'], ['questions', 'Question bank']] : []),
+    ...(role === 'TEACHER' || role === 'ADMIN' ? [['groups', 'Student groups']] : []),
+    ['results', 'Results'],
+    ...(role === 'ADMIN' ? [['users', 'Users']] : []),
+  ];
+
+  return <main className="app-shell">
+    <header className="topbar"><a className="brand" href="#home" onClick={() => setTab('home')}>EXAM<span>PORTAL</span></a><div className="account"><span>{session.user.name || session.user.email}</span><span className="role-pill">{role}</span><button className="quiet" onClick={onSignOut}>Sign out</button></div></header>
+    <nav className="tabs" aria-label="Portal sections">{nav.map(([id, label]) => <button key={id} className={tab === id ? 'selected' : ''} onClick={() => setTab(id)}>{label}</button>)}</nav>
+    <section ref={contentRef} className="content" id="main-content" tabIndex="-1">
+      {notice && <div className="notice" role="status">{notice}<button aria-label="Dismiss notice" onClick={() => setNotice('')}>×</button></div>}
+      {error && <div className="error" role="alert">{error}<button aria-label="Dismiss error" onClick={() => setError('')}>×</button></div>}
+      {tab === 'home' && role === 'TEACHER' && <TeacherDashboard exams={exams} request={request} onReport={setReport} onRefresh={refresh} />}
+      {tab === 'home' && role === 'ADMIN' && <AdminDashboard summary={summary} />}
+      {tab === 'results' && <Results results={results} />}
+      {tab === 'create' && role === 'TEACHER' && <ExamBuilder request={request} exams={exams} createdExam={createdExam} setCreatedExam={setCreatedExam} onRefresh={refresh} setNotice={setNotice} setError={setError} />}
+      {tab === 'groups' && <GroupManager request={request} />}
+      {tab === 'questions' && role === 'TEACHER' && <QuestionBankManager request={request} />}
+      {tab === 'users' && role === 'ADMIN' && <UserManager request={request} />}
+      {report && <ReportModal data={report} onClose={() => setReport(null)} />}
+    </section>
+    <footer className="footer">Online Exam Portal <span>Exam information and results are saved by the server.</span></footer>
+  </main>;
+}
+
 function formatAnswer(value) {
   if (value === null || value === undefined) return 'Not answered';
   return typeof value === 'object' ? JSON.stringify(value) : String(value);
@@ -234,6 +304,12 @@ function formatAnswer(value) {
 function ExamGroup({ title, items, onStart, busy, actionLabel }) {
   if (!items.length) return null;
   return <section className="exam-group"><div className="group-heading"><h2>{title}</h2><span>{items.length}</span></div><div className="exam-list">{items.map((exam) => <article className="exam-row" key={exam.id}><div className="exam-symbol">✦</div><div className="exam-details"><h3>{exam.title}</h3><p>{exam.description || 'Online assessment'} · {exam.duration_minutes} minutes</p>{exam.starts_at && <p className="exam-date">{new Date(exam.starts_at).toLocaleString()}</p>}</div><span className={`status-tag ${exam.status === 'IN_PROGRESS' ? 'live' : ''}`}>{exam.status === 'IN_PROGRESS' ? 'In progress' : title === 'Upcoming' ? 'Upcoming' : title === 'Completed' ? 'Completed' : 'Available'}</span><button className="secondary" onClick={() => onStart(exam)} disabled={busy || title === 'Upcoming'}>{exam.status === 'IN_PROGRESS' ? 'Resume' : actionLabel} <span aria-hidden="true">→</span></button></article>)}</div></section>;
+}
+
+function TeacherDashboard({ exams, request, onReport, onRefresh }) {
+  async function publish(exam) { if (!window.confirm(`Publish “${exam.title}”?`)) return; try { await request(`/api/exams/${exam.id}/publish`, { method: 'POST' }); await onRefresh(); } catch (err) { window.alert(err.message); } }
+  async function csv(exam) { try { const s=loadSession();const res=await fetch(`/api/reports/exams/${exam.id}.csv`,{headers:{Authorization:`Bearer ${s.token}`}});if(!res.ok)throw new Error('Could not download results.');const url=URL.createObjectURL(await res.blob());const a=document.createElement('a');a.href=url;a.download='exam-results.csv';a.click();URL.revokeObjectURL(url); } catch(err) { window.alert(err.message); } }
+  return <><div className="page-heading"><div><p className="eyebrow">TEACHER DASHBOARD</p><h1>Exam workspace</h1><p className="muted">Create a draft, add questions, then publish during its schedule.</p></div></div><section className="panel"><h2>Your exams</h2>{!exams.length?<p className="empty">No exams yet. Use Create exam to get started.</p>:<div className="table-wrap"><table><thead><tr><th>Exam</th><th>Subject</th><th>Status</th><th>Schedule</th><th>Action</th></tr></thead><tbody>{exams.map((e)=><tr key={e.id}><td>{e.title}</td><td>{e.subject}</td><td><span className="status">{e.status}</span></td><td>{new Date(e.startsAt).toLocaleString()}</td><td className="actions">{e.status==='DRAFT'&&<button className="small-primary" onClick={()=>publish(e)}>Publish</button>}<button className="text-action" onClick={async()=>{try{onReport(await request(`/api/reports/exams/${e.id}`));}catch(err){window.alert(err.message);}}}>Report</button><button className="text-action" onClick={()=>csv(e)}>CSV</button></td></tr>)}</tbody></table></div>}</section></>;
 }
 
 function ExamBuilder({ request, exams, createdExam, setCreatedExam, onRefresh, setNotice, setError }) {
