@@ -28,6 +28,8 @@ function App() {
   const [summary, setSummary] = useState(null);
   const [saveState, setSaveState] = useState('');
   const answerRef = useRef(answers);
+  const contentRef = useRef(null);
+  const attemptHeadingRef = useRef(null);
   answerRef.current = answers;
   const flushing = useRef(false);
   const submitting = useRef(false);
@@ -114,6 +116,10 @@ function App() {
     window.addEventListener('online', online);
     return () => window.removeEventListener('online', online);
   }, [attempt?.id, session?.token]);
+  useEffect(() => {
+    const target = attempt ? attemptHeadingRef.current : session ? contentRef.current : null;
+    target?.focus();
+  }, [session?.token, attempt?.id]);
 
   async function saveAnswers() {
     if (!attempt) return;
@@ -162,12 +168,12 @@ function App() {
     localStorage.removeItem(SESSION_KEY); localStorage.removeItem('online-exam-attempt'); setSession(null); setAttempt(null);
   }
   if (!session) return <Auth onSuccess={(value) => { localStorage.setItem(SESSION_KEY, JSON.stringify(value)); setSession(value); setNotice('Welcome to the Online Exam Portal.'); setError(''); }} />;
-  if (attempt) return <AttemptView attempt={attempt} answers={answers} onChange={updateAnswers} onSave={() => saveAnswers().then(() => setNotice('Answers saved.')).catch((err) => setError(err.message))} onSubmit={submit} error={error} saveState={saveState} />;
+  if (attempt) return <AttemptView attempt={attempt} answers={answers} onChange={updateAnswers} onSave={() => saveAnswers().then(() => setNotice('Answers saved.')).catch((err) => setError(err.message))} onSubmit={submit} error={error} saveState={saveState} headingRef={attemptHeadingRef} />;
 
   return <><a className="skip-link" href="#main-content">Skip to main content</a><main className="app-shell">
     <header className="topbar"><a className="brand" href="#home" onClick={() => setTab('home')}>EXAM<span>PORTAL</span></a><div className="account"><span>{session.user.email}</span><span className="role-pill">{role}</span><button className="quiet" onClick={signOut}>Sign out</button></div></header>
     <nav className="tabs" aria-label="Portal sections"><button className={tab === 'home' ? 'selected' : ''} onClick={() => setTab('home')}>Dashboard</button>{role === 'STUDENT' && <button className={tab === 'results' ? 'selected' : ''} onClick={() => setTab('results')}>My results</button>}{role === 'TEACHER' && <><button className={tab === 'create' ? 'selected' : ''} onClick={() => setTab('create')}>Create exam</button><button className={tab === 'questions' ? 'selected' : ''} onClick={() => setTab('questions')}>Question bank</button></>}{(role === 'TEACHER'||role === 'ADMIN') && <button className={tab === 'groups' ? 'selected' : ''} onClick={() => setTab('groups')}>Student groups</button>}{role === 'ADMIN' && <button className={tab === 'users' ? 'selected' : ''} onClick={() => setTab('users')}>Users</button>}</nav>
-    <section className="content" id="main-content" tabIndex="-1">
+    <section ref={contentRef} className="content" id="main-content" tabIndex="-1">
       {notice && <div className="notice" role="status">{notice}<button aria-label="Dismiss notice" onClick={() => setNotice('')}>×</button></div>}
       {error && <div className="error" role="alert">{error}<button aria-label="Dismiss error" onClick={() => setError('')}>×</button></div>}
       {tab === 'home' && role === 'STUDENT' && <StudentDashboard exams={exams} results={results} onStart={start} />}
@@ -249,11 +255,11 @@ function GroupManager({ request }) {
   return <><div className="page-heading"><div><p className="eyebrow">ELIGIBILITY</p><h1>Student groups</h1><p className="muted">Create class groups, add registered students, then assign groups to draft exams.</p></div></div>{message&&<div className="notice" role="status">{message}</div>}<section className="panel"><h2>Create group</h2><form className="form-grid" onSubmit={create}><label>Group name<input name="name" maxLength="120" required /></label><label>Description<input name="description" maxLength="500" /></label><button className="primary">Create group</button></form></section><section className="panel"><h2>Manage members</h2>{groups.length===0?<p className="empty">Create a group to add students.</p>:<><form className="inline-form" onSubmit={add}><label>Group<select value={selected} onChange={e=>setSelected(e.target.value)}>{groups.map(g=><option key={g.id} value={g.id}>{g.name} ({g.memberCount})</option>)}</select></label><label>Student email<input name="email" type="email" required /></label><button className="secondary">Add student</button></form><ul className="member-list">{members.map(m=><li key={m.id}>{m.fullName} <span>{m.email}</span><button className="text-action" onClick={()=>remove(m.id)}>Remove</button></li>)}</ul></>}</section></>;
 }
 
-function AttemptView({ attempt, answers, onChange, onSave, onSubmit, error, saveState }) {
+function AttemptView({ attempt, answers, onChange, onSave, onSubmit, error, saveState, headingRef }) {
   const [current,setCurrent]=useState(0);const q=attempt.questions[current];const total=attempt.secondsLeft??Math.max(0,Math.ceil((new Date(attempt.expiresAt)-Date.now())/1000));const mins=Math.floor(total/60);const secs=total%60;
   function choose(option,multi){const old=answers[q.id]||{answers:[],markedForReview:false};const values=multi?(old.answers.includes(option)?old.answers.filter(x=>x!==option):[...old.answers,option]):[option];onChange({...answers,[q.id]:{...old,answers:values}});}
   function mark(){const old=answers[q.id]||{answers:[],markedForReview:false};onChange({...answers,[q.id]:{...old,markedForReview:!old.markedForReview}});}
-  return <main className="attempt-page"><header className="attempt-top"><div><p className="eyebrow">EXAM IN PROGRESS</p><h1>{attempt.examTitle}</h1></div><div className={`timer ${total<120?'urgent':''}`} aria-live="polite">{String(mins).padStart(2,'0')}:{String(secs).padStart(2,'0')}<small>remaining</small></div></header>{error&&<div className="error" role="alert">{error}</div>}{saveState&&<p className="muted" aria-live="polite" role="status">{saveState}</p>}
+  return <main className="attempt-page"><header className="attempt-top"><div><p className="eyebrow">EXAM IN PROGRESS</p><h1 ref={headingRef} tabIndex="-1">{attempt.examTitle}</h1></div><div className={`timer ${total<120?'urgent':''}`} aria-live="polite">{String(mins).padStart(2,'0')}:{String(secs).padStart(2,'0')}<small>remaining</small></div></header>{error&&<div className="error" role="alert">{error}</div>}{saveState&&<p className="muted" aria-live="polite" role="status">{saveState}</p>}
     <div className="attempt-layout"><aside className="question-nav"><h2>Questions</h2><div className="number-grid">{attempt.questions.map((item,i)=><button key={item.id} className={`${i===current?'current':''} ${answers[item.id]?.answers?.length?'answered':''} ${answers[item.id]?.markedForReview?'marked':''}`} onClick={()=>setCurrent(i)} aria-label={`Question ${i+1}`}>{i+1}</button>)}</div><p className="legend"><span className="answered-dot"/> Answered <span className="marked-dot"/> Review</p></aside>
       <section className="question-card"><div className="card-top"><span>Question {current+1} of {attempt.questions.length}</span><span>{q.points} mark(s)</span></div><h2>{q.prompt}</h2><div className="choice-list">{q.options.map((option)=><label key={option} className={`choice ${(answers[q.id]?.answers||[]).includes(option)?'chosen':''}`}><input type={q.type==='MULTI_SELECT'?'checkbox':'radio'} name={`question-${q.id}`} checked={(answers[q.id]?.answers||[]).includes(option)} onChange={()=>choose(option,q.type==='MULTI_SELECT')} />{option}</label>)}</div><div className="question-actions"><button className="quiet" onClick={mark}>{answers[q.id]?.markedForReview?'Remove review mark':'Mark for review'}</button><button className="quiet" onClick={onSave}>Save now</button></div><div className="pager"><button className="secondary" disabled={current===0} onClick={()=>setCurrent(current-1)}>Previous</button><button className="secondary" disabled={current===attempt.questions.length-1} onClick={()=>setCurrent(current+1)}>Next question</button></div></section></div>
     <footer className="submit-bar"><span>{Object.values(answers).filter(v=>v.answers?.length).length} answered · {Object.values(answers).filter(v=>v.markedForReview).length} for review</span><button className="danger-button" onClick={onSubmit}>Submit exam</button></footer></main>;
