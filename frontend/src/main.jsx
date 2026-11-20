@@ -114,16 +114,23 @@ function App() {
 }
 
 function Auth({ onSuccess }) {
-  const [mode, setMode] = useState('login'); const [error, setError] = useState(''); const [busy, setBusy] = useState(false);
+  const [mode, setMode] = useState('login'); const [error, setError] = useState(''); const [notice, setNotice] = useState(''); const [busy, setBusy] = useState(false);
   async function submit(event) {
-    event.preventDefault(); setBusy(true); setError(''); const data = new FormData(event.currentTarget);
-    const body = mode === 'login' ? { email: data.get('email'), password: data.get('password') } : { fullName: data.get('fullName'), email: data.get('email'), password: data.get('password') };
-    try { onSuccess(await api(`/api/auth/${mode === 'login' ? 'login' : 'register'}`, { method: 'POST', body: JSON.stringify(body) })); }
+    event.preventDefault(); const form = event.currentTarget; setBusy(true); setError(''); const data = new FormData(form);
+    const body = mode === 'login' ? { email: data.get('email'), password: data.get('password') } : { fullName: data.get('fullName').trim(), email: data.get('email').trim(), password: data.get('password') };
+    if (mode === 'register' && body.password !== data.get('confirmPassword')) { setError('Passwords do not match.'); setBusy(false); return; }
+    if (mode === 'register' && !/^(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,128}$/.test(body.password)) { setError('Use at least 8 characters with an uppercase letter, a number, and a symbol.'); setBusy(false); return; }
+    try {
+      const result = await api(`/api/auth/${mode === 'login' ? 'login' : 'register'}`, { method: 'POST', body: JSON.stringify(body) });
+      if (mode === 'login') onSuccess(result);
+      else { form.reset(); setMode('login'); setNotice(result.message || 'Registration successful. Sign in with your new account.'); }
+    }
     catch (err) { setError(err.message); } finally { setBusy(false); }
   }
-  return <><a className="skip-link" href="#auth-main">Skip to sign in</a><main className="auth-page"><section className="auth-card" id="auth-main" tabIndex="-1"><a className="brand" href="#">EXAM<span>PORTAL</span></a><p className="eyebrow">ONLINE EXAMINATION</p><h1>{mode === 'login' ? 'Welcome back.' : 'Create your student account.'}</h1><p className="muted">Sign in to access scheduled exams and results.</p>
-    {error && <div className="error" role="alert">{error}</div>}<form onSubmit={submit} className="form-stack">{mode === 'register' && <label>Full name<input name="fullName" autoComplete="name" required maxLength="160" /></label>}<label>Email<input name="email" type="email" autoComplete="email" required maxLength="254" /></label><label>Password<input name="password" type="password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} minLength="8" required /></label>{mode === 'register' && <small>Use at least 8 characters with an uppercase letter, number, and symbol.</small>}<button className="primary" disabled={busy}>{busy ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Create account'}</button></form>
-    <p className="switch-auth">{mode === 'login' ? 'New student?' : 'Already registered?'} <button className="link-button" onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); }}>{mode === 'login' ? 'Create an account' : 'Sign in'}</button></p></section></main></>;
+  function switchMode(next) { setMode(next); setError(''); setNotice(''); }
+  return <><a className="skip-link" href="#auth-main">Skip to {mode === 'login' ? 'sign in' : 'registration'}</a><main className="auth-page"><section className="auth-card" id="auth-main" tabIndex="-1"><a className="brand" href="#">EXAM<span>PORTAL</span></a><p className="eyebrow">ONLINE EXAMINATION</p><h1>{mode === 'login' ? 'Welcome back.' : 'Create your student account.'}</h1><p className="muted">{mode === 'login' ? 'Sign in to access scheduled exams and results.' : 'Register as a student to access exams and results.'}</p>
+    {notice && <div className="notice" role="status">{notice}</div>}{error && <div className="error" role="alert">{error}</div>}<form onSubmit={submit} className="form-stack">{mode === 'register' && <label>Full name<input name="fullName" autoComplete="name" required maxLength="160" /></label>}<label>Email<input name="email" type="email" autoComplete="email" required maxLength="254" /></label><label>Password<input name="password" type="password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} minLength="8" maxLength="128" required /></label>{mode === 'register' && <><label>Confirm password<input name="confirmPassword" type="password" autoComplete="new-password" minLength="8" maxLength="128" required /></label><small>Use at least 8 characters with an uppercase letter, number, and symbol.</small></>}<button className="primary" disabled={busy}>{busy ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Register'}</button></form>
+    <p className="switch-auth">{mode === 'login' ? <>New student? <button type="button" className="link-button" onClick={() => switchMode('register')}>Create account</button></> : <>Already registered? <button type="button" className="link-button" onClick={() => switchMode('login')}>Return to Sign in</button></>}</p></section></main></>;
 }
 
 function StudentDashboard({ exams, results, onStart }) {
