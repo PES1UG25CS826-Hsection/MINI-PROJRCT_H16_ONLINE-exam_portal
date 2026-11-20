@@ -32,16 +32,19 @@ public class BearerTokenFilter extends OncePerRequestFilter {
             String id = tokens.userId(header.substring(7).trim());
             if (id != null) {
                 try {
-                    jdbc.query("SELECT id,email,role FROM users WHERE id=? AND is_active=TRUE",
-                            rs -> {
-                                if (rs.next()) {
-                                    PortalPrincipal principal = new PortalPrincipal(rs.getObject("id", UUID.class),
-                                            rs.getString("email"), rs.getString("role"));
-                                    var auth = new UsernamePasswordAuthenticationToken(principal, null,
-                                            List.of(new SimpleGrantedAuthority("ROLE_" + principal.role())));
-                                    SecurityContextHolder.getContext().setAuthentication(auth);
-                                }
-                            }, UUID.fromString(id));
+                    List<PortalPrincipal> users = jdbc.query(
+                            "SELECT id,email,role FROM users WHERE id=? AND is_active=TRUE",
+                            (rs, rowNum) -> new PortalPrincipal(rs.getObject("id", UUID.class),
+                                    rs.getString("email"), rs.getString("role")),
+                            UUID.fromString(id));
+                    if (!users.isEmpty()) {
+                        PortalPrincipal principal = users.get(0);
+                        var auth = new UsernamePasswordAuthenticationToken(principal, null,
+                                List.of(new SimpleGrantedAuthority("ROLE_" + principal.role())));
+                        var context = SecurityContextHolder.createEmptyContext();
+                        context.setAuthentication(auth);
+                        SecurityContextHolder.setContext(context);
+                    }
                 } catch (IllegalArgumentException ignored) {
                     // Invalid or expired bearer tokens remain unauthenticated.
                 }
