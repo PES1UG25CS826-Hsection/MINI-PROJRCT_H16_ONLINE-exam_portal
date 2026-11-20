@@ -52,10 +52,10 @@ public class PortalService {
         if(request==null || request.email()==null || request.password()==null)
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Email and password are required");
         List<Map<String, Object>> rows = jdbc.queryForList("SELECT id,password_hash,full_name,role,is_active FROM users WHERE email=lower(?)", request.email().trim());
-        if (rows.isEmpty() || !Boolean.TRUE.equals(rows.getFirst().get("is_active"))
-                || !passwords.matches(request.password(), String.valueOf(rows.getFirst().get("password_hash"))))
+        if (rows.isEmpty() || !Boolean.TRUE.equals(rows.get(0).get("is_active"))
+                || !passwords.matches(request.password(), String.valueOf(rows.get(0).get("password_hash"))))
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Email or password is incorrect");
-        Map<String, Object> user = rows.getFirst();
+        Map<String, Object> user = rows.get(0);
         return authResponse((UUID) user.get("id"), String.valueOf(user.get("role")), String.valueOf(user.get("full_name")));
     }
 
@@ -95,7 +95,7 @@ public class PortalService {
         jdbc.queryForObject("SELECT pg_advisory_xact_lock(hashtextextended(?,0))",(rs,rowNum)->Boolean.TRUE,examId+":"+studentId);
         List<Map<String, Object>> exams = jdbc.queryForList("SELECT id,status,starts_at,ends_at,duration_minutes,max_attempts FROM exams WHERE id=?", examId);
         if (exams.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Exam not found");
-        Map<String, Object> exam = exams.getFirst();
+        Map<String, Object> exam = exams.get(0);
         if (!"PUBLISHED".equals(exam.get("status"))) throw new ResponseStatusException(HttpStatus.CONFLICT, "This exam is not available");
         if (jdbc.queryForObject("SELECT count(*) FROM exam_assignments WHERE exam_id=? AND student_id=?", Long.class, examId, studentId) == 0)
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This exam is not assigned to your account");
@@ -105,7 +105,7 @@ public class PortalService {
         if (jdbc.queryForObject("SELECT count(*) FROM exam_questions WHERE exam_id=?",Integer.class,examId)==0)
             throw new ResponseStatusException(HttpStatus.CONFLICT,"This exam has no questions yet");
         List<Map<String, Object>> active = jdbc.queryForList("SELECT id::text AS id,started_at FROM attempts WHERE exam_id=? AND student_id=? AND status='IN_PROGRESS' ORDER BY attempt_number DESC LIMIT 1", examId, studentId);
-        if (!active.isEmpty()) return attempt(studentId, UUID.fromString(String.valueOf(active.getFirst().get("id"))));
+        if (!active.isEmpty()) return attempt(studentId, UUID.fromString(String.valueOf(active.get(0).get("id"))));
         Integer count = jdbc.queryForObject("SELECT count(*) FROM attempts WHERE exam_id=? AND student_id=?", Integer.class, examId, studentId);
         if (count >= (Integer) exam.get("max_attempts")) throw new ResponseStatusException(HttpStatus.CONFLICT, "You have reached the attempt limit");
         UUID attemptId = jdbc.queryForObject("INSERT INTO attempts(exam_id,student_id,attempt_number) VALUES (?,?,?) RETURNING id", UUID.class,
@@ -158,7 +158,7 @@ public class PortalService {
     public Map<String, Object> submit(UUID studentId, UUID attemptId) {
         List<Map<String, Object>> rows = jdbc.queryForList("SELECT a.id,a.exam_id,a.student_id,a.attempt_number,a.status,a.started_at,a.submitted_at,e.duration_minutes,e.ends_at,e.negative_marking,e.passing_marks FROM attempts a JOIN exams e ON e.id=a.exam_id WHERE a.id=? AND a.student_id=? FOR UPDATE OF a", attemptId, studentId);
         if (rows.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Attempt not found");
-        Map<String,Object> a=rows.getFirst();
+        Map<String,Object> a=rows.get(0);
         if (!"IN_PROGRESS".equals(a.get("status"))) return resultFor(studentId, attemptId);
         Instant now = databaseNow();
         if (now.isAfter(deadline(a).plusSeconds(10))) throw new ResponseStatusException(HttpStatus.CONFLICT, "The answer window has ended");
@@ -177,7 +177,7 @@ public class PortalService {
     public void expireIfNecessary(UUID attemptId, UUID studentId) {
         List<Map<String,Object>> rows=jdbc.queryForList("SELECT a.id,a.exam_id,a.student_id,a.attempt_number,a.status,a.started_at,a.submitted_at,e.duration_minutes,e.ends_at,e.negative_marking,e.passing_marks FROM attempts a JOIN exams e ON e.id=a.exam_id WHERE a.id=? AND a.student_id=? AND a.status='IN_PROGRESS' FOR UPDATE OF a",attemptId,studentId);
         if (!rows.isEmpty()) {
-            Map<String,Object> a=rows.getFirst(); Instant now=databaseNow();
+            Map<String,Object> a=rows.get(0); Instant now=databaseNow();
             if (!now.isBefore(deadline(a))) gradeLocked(studentId,attemptId,a,now);
         }
     }
@@ -216,7 +216,7 @@ public class PortalService {
     private Map<String,Object> resultFor(UUID studentId, UUID attemptId) {
         List<Map<String,Object>> rows=jdbc.queryForList("SELECT r.score,r.max_score,r.percentage,r.passed,r.graded_at,a.status,e.show_question_review FROM results r JOIN attempts a ON a.id=r.attempt_id JOIN exams e ON e.id=a.exam_id WHERE r.attempt_id=? AND a.student_id=?",attemptId,studentId);
         if (rows.isEmpty()) throw new ResponseStatusException(HttpStatus.CONFLICT,"This attempt has not been submitted");
-        Map<String,Object> row=rows.getFirst(); var output=new LinkedHashMap<String,Object>();
+        Map<String,Object> row=rows.get(0); var output=new LinkedHashMap<String,Object>();
         output.put("attemptId",attemptId.toString()); output.put("status",row.get("status")); output.put("score",row.get("score")); output.put("maxScore",row.get("max_score"));
         output.put("percentage",row.get("percentage")); output.put("passed",row.get("passed")); output.put("gradedAt",row.get("graded_at").toString());
         if (Boolean.TRUE.equals(row.get("show_question_review"))) {
@@ -235,7 +235,7 @@ public class PortalService {
 
     private Map<String,Object> ownedAttempt(UUID studentId, UUID attemptId) {
         List<Map<String,Object>> rows=jdbc.queryForList("SELECT a.id,a.exam_id,a.student_id,a.attempt_number,a.status,a.started_at,a.submitted_at,e.duration_minutes,e.ends_at,e.negative_marking,e.passing_marks FROM attempts a JOIN exams e ON e.id=a.exam_id WHERE a.id=? AND a.student_id=?",attemptId,studentId);
-        if(rows.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND,"Attempt not found"); return rows.getFirst();
+        if(rows.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND,"Attempt not found"); return rows.get(0);
     }
 
     private void ensureAnswerWindow(Map<String,Object> attempt) {
