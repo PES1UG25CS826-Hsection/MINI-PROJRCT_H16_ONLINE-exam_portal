@@ -98,6 +98,14 @@ class ExamControllerTest {
         }
     }
 
+    @Test
+    void answerRequestPreservesAnswersAndReviewFlag() {
+        var answer = new ExamController.AnswerRequest(java.util.List.of("Option B"), true);
+
+        assertEquals(java.util.List.of("Option B"), answer.answers());
+        assertTrue(answer.markedForReview());
+    }
+
     private ExamController.ExamRequest request(String title, String subject, int duration, Instant start, Instant end,
                                               BigDecimal total, BigDecimal passing) {
         return new ExamController.ExamRequest(title, subject, duration, start, end, total, passing,

@@ -31,10 +31,13 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       SECURITY_TOKEN_SECRET: ${TOKEN_SECRET:-local-development-secret-change-this-before-deploying-2026}
+      DEMO_ACCOUNTS_ENABLED: ${DEMO_ACCOUNTS_ENABLED:-false}
       DEMO_ADMIN_EMAIL: ${DEMO_ADMIN_EMAIL:-}
       DEMO_ADMIN_PASSWORD: ${DEMO_ADMIN_PASSWORD:-}
       DEMO_TEACHER_EMAIL: ${DEMO_TEACHER_EMAIL:-}
       DEMO_TEACHER_PASSWORD: ${DEMO_TEACHER_PASSWORD:-}
+      DEMO_STUDENT_EMAIL: ${DEMO_STUDENT_EMAIL:-}
+      DEMO_STUDENT_PASSWORD: ${DEMO_STUDENT_PASSWORD:-}
     depends_on:
       db: { condition: service_healthy }
       redis: { condition: service_healthy }
