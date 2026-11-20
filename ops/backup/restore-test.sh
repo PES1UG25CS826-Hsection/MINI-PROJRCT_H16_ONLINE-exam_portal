@@ -8,6 +8,7 @@ fi
 : "${PGHOST:?PGHOST is required}"
 : "${PGUSER:?PGUSER is required}"
 : "${PGPASSWORD:?PGPASSWORD is required}"
+: "${PGDATABASE:?PGDATABASE is required for source data comparison}"
 
 backup_file=$1
 identity_file=$2
@@ -34,4 +35,13 @@ if [ -z "$migration_version" ]; then
   exit 1
 fi
 
-echo "Restore verification passed: public_tables=$table_count, flyway_version=$migration_version, target=$restore_db"
+source_user_count=$(psql --no-password --host="$PGHOST" --port="${PGPORT:-5432}" --username="$PGUSER" --dbname="$PGDATABASE" --tuples-only --no-align \
+  --command="SELECT count(*) FROM users")
+restored_user_count=$(psql --no-password --host="$PGHOST" --port="${PGPORT:-5432}" --username="$PGUSER" --dbname="$restore_db" --tuples-only --no-align \
+  --command="SELECT count(*) FROM users")
+if [ "$source_user_count" -ne "$restored_user_count" ]; then
+  echo "Restore verification failed: source users=$source_user_count, restored users=$restored_user_count" >&2
+  exit 1
+fi
+
+echo "Restore verification passed: public_tables=$table_count, flyway_version=$migration_version, users=$restored_user_count, target=$restore_db"
