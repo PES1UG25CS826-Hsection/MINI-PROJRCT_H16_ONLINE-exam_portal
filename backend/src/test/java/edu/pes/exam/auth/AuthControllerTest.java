@@ -136,7 +136,7 @@ class AuthControllerTest {
         when(values.increment(org.mockito.ArgumentMatchers.startsWith("portal:login:ip:"))).thenReturn(1L);
         when(redis.hasKey(anyString())).thenReturn(false);
         when(passwords.matches("SecurePass1!", "bcrypt-hash")).thenReturn(true);
-        when(tokens.issue(userId)).thenReturn("active-session");
+        when(tokens.issue(userId, "STUDENT")).thenReturn("active-session");
         when(jdbc.query(anyString(), any(RowMapper.class), any(Object[].class)))
                 .thenAnswer(invocation -> {
                     RowMapper<?> mapper = invocation.getArgument(1);
@@ -145,6 +145,7 @@ class AuthControllerTest {
                     when(row.getString("email")).thenReturn("student@example.test");
                     when(row.getString("password_hash")).thenReturn("bcrypt-hash");
                     when(row.getString("role")).thenReturn("STUDENT");
+                    when(row.getString("full_name")).thenReturn("Demo Student");
                     when(row.getBoolean("is_active")).thenReturn(true);
                     return List.of(mapper.mapRow(row, 0));
                 });
