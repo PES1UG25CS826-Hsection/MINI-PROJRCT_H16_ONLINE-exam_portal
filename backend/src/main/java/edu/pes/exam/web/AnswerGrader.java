@@ -4,8 +4,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -32,8 +35,16 @@ public class AnswerGrader {
         try {
             JsonNode left=json.readTree(answer),right=json.readTree(correctAnswer);
             if(left!=null&&right!=null&&left.isTextual()&&right.isTextual()) return left.asText().trim().equalsIgnoreCase(right.asText().trim());
+            if(left!=null&&right!=null&&left.isArray()&&right.isArray()) return arrayValues(left).equals(arrayValues(right));
             return Objects.equals(left,right);
         } catch(Exception ex) { return false; }
+    }
+
+    private Set<String> arrayValues(JsonNode values) {
+        var normalized = new HashSet<String>();
+        values.forEach(value -> normalized.add(value.isTextual()
+                ? value.asText().trim().toLowerCase(Locale.ROOT) : value.toString()));
+        return normalized;
     }
 
     public record QuestionSubmission(BigDecimal points,String answerJson,String correctAnswerJson) {}

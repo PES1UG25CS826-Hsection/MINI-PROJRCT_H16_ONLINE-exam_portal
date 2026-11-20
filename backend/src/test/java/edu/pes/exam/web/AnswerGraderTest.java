@@ -34,6 +34,11 @@ class AnswerGraderTest {
         assertThrows(IllegalArgumentException.class,()->grader.grade(List.of(),BigDecimal.ZERO,BigDecimal.ZERO));
     }
 
+    @Test void comparesMultiSelectAnswersWithoutDependingOnSelectionOrder() {
+        assertTrue(grader.isCorrect("[\"B\",\"a\"]", "[\"A\",\"b\"]"));
+        assertFalse(grader.isCorrect("[\"A\"]", "[\"A\",\"B\"]"));
+    }
+
     private static AnswerGrader.QuestionSubmission q(String points,String answer,String correct) {
         return new AnswerGrader.QuestionSubmission(new BigDecimal(points),answer,correct);
     }

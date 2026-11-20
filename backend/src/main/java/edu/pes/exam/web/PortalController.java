@@ -20,11 +20,6 @@ public class PortalController {
     private final PortalService portal;
     public PortalController(PortalService portal) { this.portal = portal; }
 
-    @PostMapping("/auth/register")
-    public Map<String,Object> register(@RequestBody PortalService.RegisterRequest request) { return portal.register(request); }
-    @PostMapping("/auth/login")
-    public Map<String,Object> login(@RequestBody PortalService.LoginRequest request) { return portal.login(request); }
-
     @GetMapping("/student/exams")
     @PreAuthorize("hasRole('STUDENT')")
     public Map<String,Object> exams(Authentication auth) { return Map.of("groups",portal.exams(userId(auth))); }

@@ -22,6 +22,9 @@ function App() {
   const lastAutosave = useRef(Date.now());
   const flushing = useRef(false);
   const submitting = useRef(false);
+  const attemptHeadingRef = useRef(null);
+  const resultHeadingRef = useRef(null);
+  const dashboardHeadingRef = useRef(null);
 
   const api = useCallback(async (path, options = {}) => {
     const response = await fetch(`/api${path}`, {
@@ -81,6 +84,11 @@ function App() {
 
   useEffect(() => { if (session) loadExams().catch((err) => setError(err.message)); }, [session, loadExams]);
   useEffect(() => {
+    if (!session) return;
+    const target = attempt ? attemptHeadingRef.current : result ? resultHeadingRef.current : dashboardHeadingRef.current;
+    target?.focus();
+  }, [session?.accessToken, attempt?.id, Boolean(result)]);
+  useEffect(() => {
     const online = () => { if (attempt) flushPending(attempt.id); };
     window.addEventListener('online', online);
     return () => window.removeEventListener('online', online);
@@ -113,7 +121,9 @@ function App() {
   }
 
   function signOut() {
-    localStorage.removeItem(SESSION_KEY); setSession(null); setAttempt(null); setResult(null); setGroups({ upcoming: [], available: [], completed: [] });
+    localStorage.removeItem(SESSION_KEY);
+    if (attempt) localStorage.removeItem(queueKey(attempt.id));
+    setSession(null); setAttempt(null); setResult(null); setGroups({ upcoming: [], available: [], completed: [] });
   }
 
   async function beginExam(exam) {
@@ -133,6 +143,12 @@ function App() {
     if (navigator.onLine) window.setTimeout(() => flushPending(id), 250);
   }
 
+  function toggleOption(question, option) {
+    const selected = Array.isArray(question.answer) ? question.answer : [];
+    const next = selected.includes(option) ? selected.filter((item) => item !== option) : [...selected, option];
+    updateAnswer(question, next);
+  }
+
   async function submitAttempt(automatic = false) {
     if (!attempt) return;
     if (!automatic && !window.confirm('Submit this exam now? You will not be able to change your answers after submission.')) return;
@@ -150,12 +166,12 @@ function App() {
     finally { submitting.current = false; setBusy(false); }
   }
 
-  const unanswered = useMemo(() => attempt?.questions.filter((q) => q.answer === null || q.answer === undefined).length || 0, [attempt]);
+  const unanswered = useMemo(() => attempt?.questions.filter((q) => q.answer === null || q.answer === undefined || (Array.isArray(q.answer) && q.answer.length === 0) || q.answer === '').length || 0, [attempt]);
   const formatTime = (seconds) => `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
 
   if (!session) return <main className="auth-shell">
     <a className="brand" href="#home">EXAM<span>PORTAL</span></a>
-    <div className="auth-card">
+    <div className="auth-card" id="main-content" tabIndex="-1">
       <p className="eyebrow">ONLINE EXAMINATION</p>
       <h1>{authMode === 'login' ? 'Welcome back.' : 'Create your student account.'}</h1>
       <p className="muted">{authMode === 'login' ? 'Sign in to see your assessments and results.' : 'Your exams and progress, all in one place.'}</p>
@@ -163,6 +179,7 @@ function App() {
         {authMode === 'register' && <label>Full name<input name="fullName" autoComplete="name" required maxLength="160" /></label>}
         <label>Email address<input name="email" type="email" autoComplete="email" required /></label>
         <label>Password<input name="password" type="password" autoComplete={authMode === 'login' ? 'current-password' : 'new-password'} minLength="10" required /></label>
+        {authMode === 'register' && <p className="muted">Use 10 or more characters with an uppercase letter, a number, and a symbol.</p>}
         {error && <p className="error" role="alert">{error}</p>}
         <button className="primary" disabled={busy}>{busy ? 'Please wait…' : authMode === 'login' ? 'Sign in' : 'Create account'} <span aria-hidden="true">→</span></button>
       </form>
@@ -171,12 +188,12 @@ function App() {
     <footer><span>Online Exam Portal</span><span>Built for focused learning</span></footer>
   </main>;
 
-  return <main className="app-shell">
+  return <main className="app-shell" id="main-content" tabIndex="-1">
     <nav className="topbar"><a className="brand" href="#home">EXAM<span>PORTAL</span></a><div className="user-tools"><span>{session.user.name}</span><button className="quiet-button" onClick={signOut}>Sign out</button></div></nav>
     {error && <div className="banner error-banner" role="alert">{error}<button onClick={() => setError('')} aria-label="Dismiss">×</button></div>}
     {notice && <div className="banner success-banner" role="status">{notice}<button onClick={() => setNotice('')} aria-label="Dismiss">×</button></div>}
     {attempt ? <section className="exam-view" aria-label="Exam attempt">
-      <header className="exam-header"><div><p className="eyebrow">EXAM IN PROGRESS</p><h1>Assessment</h1><p className="muted">Your answers save as you work. You can return to any question.</p></div><div className={`timer ${remaining < 300 ? 'urgent' : ''}`} aria-live="polite"><span>TIME REMAINING</span><strong>{formatTime(remaining)}</strong></div></header>
+      <header className="exam-header"><div><p className="eyebrow">EXAM IN PROGRESS</p><h1 ref={attemptHeadingRef} tabIndex="-1">Assessment</h1><p className="muted">Your answers save as you work. You can return to any question.</p></div><div className={`timer ${remaining < 300 ? 'urgent' : ''}`} aria-live="polite"><span>TIME REMAINING</span><strong>{formatTime(remaining)}</strong></div></header>
       <div className="exam-layout">
         <aside className="question-nav"><h2>Questions</h2><p className="muted small">{attempt.questions.length - unanswered} of {attempt.questions.length} answered</p><div className="question-grid">{attempt.questions.map((q, i) => <button key={q.id} aria-label={`Question ${i + 1}${q.answer != null ? ', answered' : ', unanswered'}${q.marked_for_review ? ', marked for review' : ''}`} aria-current={activeQuestion === i ? 'step' : undefined} className={`question-chip ${activeQuestion === i ? 'current' : ''} ${q.answer != null ? 'answered' : ''} ${q.marked_for_review ? 'review' : ''}`} onClick={() => setActiveQuestion(i)}>{i + 1}</button>)}</div><div className="legend"><span><i className="dot done" /> Answered</span><span><i className="dot flag" /> Review</span><span><i className="dot" /> Unanswered</span></div></aside>
         <article className="question-card">
@@ -186,7 +203,10 @@ function App() {
             <div className="answer-options">{(attempt.questions[activeQuestion].options || []).map((option, i) => {
               const value = typeof option === 'object' ? option.id ?? option.value ?? option.text : option;
               const label = typeof option === 'object' ? option.text ?? option.label ?? option.value : option;
-              return <label key={String(value)} className={`option ${attempt.questions[activeQuestion].answer === value ? 'selected' : ''}`}><input type="radio" name={attempt.questions[activeQuestion].id} checked={attempt.questions[activeQuestion].answer === value} onChange={() => updateAnswer(attempt.questions[activeQuestion], value)} /><span className="option-letter">{String.fromCharCode(65 + i)}</span><span>{label}</span></label>;
+              const question = attempt.questions[activeQuestion];
+              const multiSelect = question.question_type === 'MULTI_SELECT';
+              const selected = multiSelect ? (Array.isArray(question.answer) && question.answer.includes(value)) : question.answer === value;
+              return <label key={String(value)} className={`option ${selected ? 'selected' : ''}`}><input type={multiSelect ? 'checkbox' : 'radio'} name={question.id} checked={selected} onChange={() => multiSelect ? toggleOption(question, value) : updateAnswer(question, value)} /><span className="option-letter">{String.fromCharCode(65 + i)}</span><span>{label}</span></label>;
             })}</div>
             {attempt.questions[activeQuestion].question_type === 'SHORT_ANSWER' && <label className="short-answer">Your answer<textarea rows="4" value={attempt.questions[activeQuestion].answer ?? ''} onChange={(event) => updateAnswer(attempt.questions[activeQuestion], event.target.value)} /></label>}
             <div className="question-actions"><button className={`review-button ${attempt.questions[activeQuestion].marked_for_review ? 'marked' : ''}`} onClick={() => updateAnswer(attempt.questions[activeQuestion], attempt.questions[activeQuestion].answer, !attempt.questions[activeQuestion].marked_for_review)}>{attempt.questions[activeQuestion].marked_for_review ? '★ Marked for review' : '☆ Mark for review'}</button><span className="save-status" aria-live="polite">{saveState}</span></div>
@@ -195,8 +215,8 @@ function App() {
         </article>
       </div>
       <div className="submit-row"><span>{unanswered ? `${unanswered} unanswered question${unanswered === 1 ? '' : 's'}` : 'You have answered every question'}</span><button className="danger-button" disabled={busy} onClick={() => submitAttempt(false)}>Submit exam</button></div>
-    </section> : result ? <section className="result-card"><div className="result-icon">✓</div><p className="eyebrow">EXAM COMPLETE</p><h1>{result.passed ? 'Well done.' : 'Assessment submitted.'}</h1><p className="muted">Your result has been recorded.</p><div className="score-line"><strong>{result.score}<small> / {result.maxScore}</small></strong><span>{result.percentage}%</span></div><span className={`result-pill ${result.passed ? 'pass' : 'fail'}`}>{result.passed ? 'PASS' : 'NOT PASSED'}</span>{result.questions?.length > 0 && <section className="review-results" aria-label="Question review"><h2>Question review</h2>{result.questions.map((question,index) => <article key={question.question_id}><div className="review-result-heading"><strong>Question {index + 1}</strong><span className={question.is_correct ? 'answer-correct' : 'answer-incorrect'}>{question.is_correct ? 'Correct' : 'Review'}</span></div><p>{question.prompt}</p><dl><div><dt>Your answer</dt><dd>{formatAnswer(question.answer)}</dd></div><div><dt>Correct answer</dt><dd>{formatAnswer(question.correct_answer)}</dd></div></dl></article>)}</section>}<div className="result-footer"><button className="primary" onClick={() => { setResult(null); loadExams(); }}>Back to my exams</button></div></section> : <section className="dashboard">
-      <div className="dashboard-heading"><div><p className="eyebrow">STUDENT DASHBOARD</p><h1>Your exams, at a glance.</h1><p className="muted">Pick up where you left off, or see what’s coming next.</p></div><button className="quiet-button" onClick={() => loadExams().catch((err) => setError(err.message))}>Refresh ↻</button></div>
+    </section> : result ? <section className="result-card"><div className="result-icon">✓</div><p className="eyebrow">EXAM COMPLETE</p><h1 ref={resultHeadingRef} tabIndex="-1">{result.passed ? 'Well done.' : 'Assessment submitted.'}</h1><p className="muted">Your result has been recorded.</p><div className="score-line"><strong>{result.score}<small> / {result.maxScore}</small></strong><span>{result.percentage}%</span></div><span className={`result-pill ${result.passed ? 'pass' : 'fail'}`}>{result.passed ? 'PASS' : 'NOT PASSED'}</span>{result.questions?.length > 0 && <section className="review-results" aria-label="Question review"><h2>Question review</h2>{result.questions.map((question,index) => <article key={question.question_id}><div className="review-result-heading"><strong>Question {index + 1}</strong><span className={question.is_correct ? 'answer-correct' : 'answer-incorrect'}>{question.is_correct ? 'Correct' : 'Review'}</span></div><p>{question.prompt}</p><dl><div><dt>Your answer</dt><dd>{formatAnswer(question.answer)}</dd></div><div><dt>Correct answer</dt><dd>{formatAnswer(question.correct_answer)}</dd></div></dl></article>)}</section>}<div className="result-footer"><button className="primary" onClick={() => { setResult(null); loadExams(); }}>Back to my exams</button></div></section> : <section className="dashboard">
+      <div className="dashboard-heading"><div><p className="eyebrow">STUDENT DASHBOARD</p><h1 ref={dashboardHeadingRef} tabIndex="-1">Your exams, at a glance.</h1><p className="muted">Pick up where you left off, or see what’s coming next.</p></div><button className="quiet-button" onClick={() => loadExams().catch((err) => setError(err.message))}>Refresh ↻</button></div>
       <ExamGroup title="Available now" items={groups.available} onStart={beginExam} busy={busy} actionLabel="Start exam" />
       <ExamGroup title="Upcoming" items={groups.upcoming} onStart={() => {}} busy={busy} actionLabel="Opens later" />
       <ExamGroup title="Completed" items={groups.completed} onStart={async (exam) => { try { setResult(await api(`/attempts/${exam.latest_attempt}/result`)); } catch (err) { setError(err.message); } }} busy={busy} actionLabel="View result" />

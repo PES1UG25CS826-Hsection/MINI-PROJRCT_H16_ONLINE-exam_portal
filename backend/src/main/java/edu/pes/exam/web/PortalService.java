@@ -1,7 +1,6 @@
 package edu.pes.exam.web;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import edu.pes.exam.security.TokenService;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -9,10 +8,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -21,47 +18,10 @@ import org.springframework.web.server.ResponseStatusException;
 public class PortalService {
     private final JdbcTemplate jdbc;
     private final ObjectMapper json;
-    private final PasswordEncoder passwords;
-    private final TokenService tokens;
     private final AnswerGrader grader;
 
-    public PortalService(JdbcTemplate jdbc, ObjectMapper json, PasswordEncoder passwords, TokenService tokens,AnswerGrader grader) {
-        this.jdbc = jdbc; this.json = json; this.passwords = passwords; this.tokens = tokens; this.grader=grader;
-    }
-
-    public Map<String, Object> register(RegisterRequest request) {
-        if(request==null || request.email()==null || request.password()==null || request.fullName()==null)
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Email, password, and name are required");
-        String email = request.email().trim().toLowerCase();
-        if (email.isBlank() || !email.matches("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$") || email.length() > 254)
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Enter a valid email address");
-        if (request.password().length() < 10 || request.password().length() > 128)
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Password must be between 10 and 128 characters");
-        if (request.fullName().isBlank() || request.fullName().length() > 160)
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Enter your name");
-        try {
-            UUID id = jdbc.queryForObject("INSERT INTO users(email,password_hash,full_name,role) VALUES (?,?,?,'STUDENT') RETURNING id", UUID.class,
-                    email, passwords.encode(request.password()), request.fullName().trim());
-            return authResponse(id, "STUDENT", request.fullName().trim());
-        } catch (DuplicateKeyException ex) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "An account with this email already exists");
-        }
-    }
-
-    public Map<String, Object> login(LoginRequest request) {
-        if(request==null || request.email()==null || request.password()==null)
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Email and password are required");
-        List<Map<String, Object>> rows = jdbc.queryForList("SELECT id,password_hash,full_name,role,is_active FROM users WHERE email=lower(?)", request.email().trim());
-        if (rows.isEmpty() || !Boolean.TRUE.equals(rows.get(0).get("is_active"))
-                || !passwords.matches(request.password(), String.valueOf(rows.get(0).get("password_hash"))))
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Email or password is incorrect");
-        Map<String, Object> user = rows.get(0);
-        return authResponse((UUID) user.get("id"), String.valueOf(user.get("role")), String.valueOf(user.get("full_name")));
-    }
-
-    private Map<String, Object> authResponse(UUID id, String role, String name) {
-        return Map.of("accessToken", tokens.issue(id, role), "tokenType", "Bearer", "expiresIn", 43200,
-                "user", Map.of("id", id.toString(), "name", name, "role", role));
+    public PortalService(JdbcTemplate jdbc, ObjectMapper json, AnswerGrader grader) {
+        this.jdbc = jdbc; this.json = json; this.grader=grader;
     }
 
     public Map<String, List<Map<String, Object>>> exams(UUID studentId) {
@@ -266,7 +226,5 @@ public class PortalService {
     private String writeJson(Object value) { try{return json.writeValueAsString(value);}catch(Exception ex){throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Answer must be valid JSON");} }
     private record OffsetTimes(java.time.OffsetDateTime start,java.time.OffsetDateTime end,java.time.OffsetDateTime now) {}
 
-    public record RegisterRequest(String email,String password,String fullName) {}
-    public record LoginRequest(String email,String password) {}
     public record AnswerRequest(Object answer,boolean markedForReview) {}
 }
