@@ -15,8 +15,9 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class TokenService {
-    private static final long LIFETIME_SECONDS = 12 * 60 * 60;
-    private static final String REVOKED_PREFIX = "portal:revoked:";
+    private static final long MAX_LIFETIME_SECONDS = 12 * 60 * 60;
+    private static final Duration IDLE_TTL = Duration.ofMinutes(30);
+    private static final String SESSION_PREFIX = "portal:session:";
     private final byte[] secret;
     private final StringRedisTemplate redis;
 
@@ -27,24 +28,28 @@ public class TokenService {
         if (this.secret.length < 32) throw new IllegalArgumentException("security.token-secret must be at least 32 characters");
     }
 
-    public TokenService(String secret) { this(secret, null); }
-
     public String issue(UUID userId) { return issue(userId, "STUDENT"); }
 
     public String issue(UUID userId, String role) {
-        String payload = userId + ":" + role + ":" + (Instant.now().getEpochSecond() + LIFETIME_SECONDS);
+        String payload = userId + ":" + role + ":" + (Instant.now().getEpochSecond() + MAX_LIFETIME_SECONDS);
         String encoded = Base64.getUrlEncoder().withoutPadding().encodeToString(payload.getBytes(StandardCharsets.UTF_8));
-        return encoded + "." + sign(encoded);
+        String token = encoded + "." + sign(encoded);
+        redis.opsForValue().set(SESSION_PREFIX + token, userId.toString(), IDLE_TTL);
+        return token;
     }
 
     public Principal verify(String token) {
-        if (token == null || token.length() > 512 || (redis != null && Boolean.TRUE.equals(redis.hasKey(REVOKED_PREFIX + token)))) return null;
+        if (token == null || token.length() > 512) return null;
         try {
             String[] parts = token.split("\\.", -1);
             if (parts.length != 2 || !MessageDigest.isEqual(sign(parts[0]).getBytes(StandardCharsets.US_ASCII), parts[1].getBytes(StandardCharsets.US_ASCII))) return null;
             String[] fields = new String(Base64.getUrlDecoder().decode(parts[0]), StandardCharsets.UTF_8).split(":", -1);
             if (fields.length != 3 || Long.parseLong(fields[2]) < Instant.now().getEpochSecond()) return null;
-            return new Principal(UUID.fromString(fields[0]), fields[1]);
+            UUID userId = UUID.fromString(fields[0]);
+            String sessionKey = SESSION_PREFIX + token;
+            if (!userId.toString().equals(redis.opsForValue().get(sessionKey))) return null;
+            redis.expire(sessionKey, IDLE_TTL);
+            return new Principal(userId, fields[1]);
         } catch (RuntimeException ex) {
             return null;
         }
@@ -56,9 +61,7 @@ public class TokenService {
     }
 
     public void revoke(String token) {
-        if (redis != null && token != null && token.length() <= 512) {
-            redis.opsForValue().set(REVOKED_PREFIX + token, "1", Duration.ofSeconds(LIFETIME_SECONDS));
-        }
+        if (token != null && token.length() <= 512) redis.delete(SESSION_PREFIX + token);
     }
 
     private String sign(String value) {
