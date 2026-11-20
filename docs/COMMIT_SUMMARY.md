@@ -13,11 +13,11 @@ The IDs below are commit IDs present in the local repository history. They ident
 | FR-18 | #30 | `6969ca0` | Teacher reports and CSV export feature merge. |
 | FR-19 | #31 | `cb8ce86` | Admin summary report feature merge. |
 | FR-20 | #32 | `334141a` | Per-attempt question and option randomization feature merge. |
-| NFR-05 | #33 | `4b18831` (local) | Usability work; required user study remains incomplete. |
-| NFR-06 | #34 | `040ca29` (local) | Responsive/browser work; browser matrix remains incomplete. |
+| NFR-05 | #33 | `4b18831`, `f99c840` (local) | Simulated usability analysis and blank real-student collection form; no real study performed. |
+| NFR-06 | #34 | `040ca29`, `f99c840` (local) | Responsive styles and Edge Playwright checks; 4 browser tests passed, cross-browser matrix incomplete. |
 | NFR-08 | #35 | `005995f` (local), building on `575a420` | Expanded meaningful tests and JaCoCo gate; current integrated result is reported in `CODE_COVERAGE_REPORT.md`. |
-| NFR-09 | #36 | `1a8ddfb` | Encrypted backup restore drill. |
-| NFR-10 | #38 | `24a386e` | Accessibility/focus updates merged to main. |
-| TASK-04 | #39 | `df1a448`, `d83f6d6`, `432b89c` | Demo video, final project documentation and commit summary (documentation commits are local). |
+| NFR-09 | #36 | `1a8ddfb`, `f99c840` (local) | Encrypted daily backup/restore instructions and honest verification status; isolated restore still pending. |
+| NFR-10 | #38 | `24a386e`, `f99c840` (local) | Accessibility/focus updates and automated axe scans on two screens; manual WCAG audit pending. |
+| TASK-04 | #39 | `df1a448`, `d83f6d6`, `432b89c`, `f99c840` (local) | Faculty guide, reports, tracker, browser checks and final evidence documentation. |
 
-Authentication changes are in local commit `4a55a1a` (`fix: complete student registration and demo authentication`). They are not pushed. No changes were pushed during this continuation.
+Authentication changes are in local commit `4a55a1a` (`fix: complete student registration and demo authentication`). The current final-evidence commit is `f99c840` (`TASK-04: Complete final validation evidence (#39)`). Both are local and unpushed. No changes were pushed during this continuation.
