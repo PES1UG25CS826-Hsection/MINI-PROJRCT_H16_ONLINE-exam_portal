@@ -33,14 +33,16 @@ A role-based online exam portal built with React, Spring Boot, PostgreSQL, and R
 ## Run with Docker Compose
 
 1. Install Docker Desktop with Compose enabled.
-2. Copy `.env.example` to `.env` and set a unique `POSTGRES_PASSWORD`. Public registration creates Student accounts only. Demo accounts are disabled by default. To enable local Admin, Teacher, and Student demo accounts, set `DEMO_ACCOUNTS_ENABLED=true` and set each `DEMO_*_EMAIL` plus a private `DEMO_*_PASSWORD` of at least 12 characters. Keep those secrets only in `.env`; never commit them. Seeding hashes passwords and skips existing email addresses.
+2. Copy `.env.example` to `.env`, set a unique `POSTGRES_PASSWORD`, and set a unique `TOKEN_SECRET` of at least 32 characters before sharing or deploying the service. Public registration creates Student accounts only. Demo accounts are disabled by default. To enable local Admin, Teacher, and Student demo accounts, set `DEMO_ACCOUNTS_ENABLED=true` and set each `DEMO_*_EMAIL` plus a private `DEMO_*_PASSWORD` of at least 12 characters. Keep those secrets only in `.env`; never commit them. Seeding hashes passwords and skips existing email addresses.
 3. Run `docker compose up --build` from the repository root.
 4. Open <http://localhost:3000>. The web container proxies `/api/` and `/actuator/` to the API service on port 8080 inside the Compose network; health checks are at <http://localhost:3000/actuator/health> and <http://localhost:3000/api/health>.
-5. Stop with `docker compose down`. Adding `-v` also deletes local database and Redis data.
+5. Stop with `docker compose down`. Add `-v` only when you also want to delete the local Postgres and Redis data volumes.
+
+The API runs Flyway migrations at startup. Hibernate is set to `ddl-auto: validate`, so schema changes belong in a new migration under `backend/src/main/resources/db/migration/` rather than automatic table generation.
 
 ### Registration and sign in
 
-Open the portal and choose **Create account**. Enter a full name, valid email, and a password with at least 8 characters, an uppercase letter, a number, and a symbol; confirm the password and register. Public registration always assigns the Student role. After the success message, use the returned **Sign in** link and log in with the new credentials. There is no password-recovery endpoint, so the login page does not show a nonfunctional recovery link.
+Open the portal and choose **Create account**. Enter a full name, valid email, and a password with at least 10 characters, an uppercase letter, a number, and a symbol; confirm the password and register. Public registration always assigns the Student role. After the success message, use the returned **Sign in** link and log in with the new credentials. There is no password-recovery endpoint, so the login page does not show a nonfunctional recovery link.
 
 For a local faculty demo, enable seeding and provide credentials in `.env` (examples are shown with blank password values in `.env.example`):
 
@@ -95,4 +97,21 @@ See [`docs/DEVIATIONS.md`](docs/DEVIATIONS.md) for known scope and evidence gaps
 
 ## Database tables
 
-The Flyway migrations define users, questions, exams, exam-question assignments, attempts, saved answers, results, and audit events. Use additive migrations under `backend/src/main/resources/db/migration/` for schema changes.
+- `GET /api/health` returns a small service status response.
+- Spring Actuator exposes health at `/actuator/health`.
+
+## Student workflow API
+
+- `POST /api/auth/register` creates a student account; `POST /api/auth/login` returns a 12-hour bearer token.
+- `GET /api/student/exams` returns assigned, published assessments in `upcoming`, `available`, and `completed` groups.
+- `POST /api/exams/{examId}/attempts` starts or resumes the student's in-progress attempt. Eligibility and attempt limits are checked on the server.
+- `GET /api/attempts/{attemptId}` returns a server-timed attempt, saved answers, and question options without answer keys.
+- `PUT /api/attempts/{attemptId}/answers/{questionId}` stores the answer and review flag. Updates are idempotent and rejected after the server deadline plus the 10-second grace period.
+- `POST /api/attempts/{attemptId}/submit` grades once, stores the result, and makes the attempt read-only. The expiry worker also submits attempts when their server deadline passes.
+- `GET /api/attempts/{attemptId}/result` returns score, percentage, and pass/fail; per-question review is returned only when enabled on the exam.
+
+Answer state is in PostgreSQL, so reconnecting to another API instance restores the same attempt. API instances are stateless and share the database; the Nginx proxy resolves the `api` service name dynamically. For a local multi-instance check, run `docker compose up --build --scale api=3`. This shares one database and Redis service across the replicas.
+
+## Performance and availability evidence
+
+See [`ops/performance/README.md`](ops/performance/README.md) for the 500-user request workload and result timing thresholds, and [`ops/monitoring/README.md`](ops/monitoring/README.md) for the uptime probe and monthly report. These scripts produce reproducible evidence, but a real deployment and a complete monitoring month are required to claim the 500-user performance and 99.5% availability targets. No production environment or measured month is included in this repository, so those measured acceptance criteria remain pending real environment evidence.

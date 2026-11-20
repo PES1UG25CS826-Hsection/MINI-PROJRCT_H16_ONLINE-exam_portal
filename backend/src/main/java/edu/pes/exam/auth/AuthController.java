@@ -108,7 +108,11 @@ public class AuthController {
     }
 
     private Map<String, Object> session(UUID id, String email, String role) {
-        return Map.of("token", tokens.issue(id), "user", Map.of("id", id, "email", email, "role", role));
+        var rows = jdbc.query("SELECT full_name FROM users WHERE id=?", (rs, row) -> rs.getString("full_name"), id);
+        String name = rows.isEmpty() ? email : rows.get(0);
+        String token = tokens.issue(id, role);
+        return Map.of("token", token, "accessToken", token,
+                "user", Map.of("id", id, "email", email, "name", name, "role", role));
     }
     private void audit(UUID actor, String action, String type, String entity, String ip) {
         jdbc.update("INSERT INTO audit_log(actor_id,action,entity_type,entity_id,ip_address) VALUES (?,?,?,?,?::inet)",
