@@ -15,7 +15,7 @@ The optional Compose `backup` profile takes a PostgreSQL custom-format dump imme
 
 ## Verify a backup can be restored
 
-This drill restores to a temporary database on the same PostgreSQL server, checks that the schema and Flyway history are present, then drops only that explicitly named temporary database. It does not alter the source database or any Docker volume.
+This drill restores to a temporary database on the same PostgreSQL server, checks that the schema and Flyway history are present and that the restored user-row count matches the source, then drops only that explicitly named temporary database. It does not alter the source database or any Docker volume.
 
 ```sh
 docker compose --profile backup run --rm --no-deps \
@@ -26,7 +26,7 @@ docker compose --profile backup run --rm --no-deps \
   /run/secrets/backup-age-identity
 ```
 
-Replace the archive name with an existing encrypted backup. The identity file must match the public recipient used to encrypt it. The command reports the restored public table count and Flyway version; a non-zero exit indicates a failed drill.
+Replace the archive name with an existing encrypted backup. The identity file must match the public recipient used to encrypt it. The command reports the restored public table count, Flyway version and user-row count; a non-zero exit indicates a failed drill.
 
 ## Restore procedure
 

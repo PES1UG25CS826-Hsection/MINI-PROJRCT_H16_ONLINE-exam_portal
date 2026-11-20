@@ -17,7 +17,7 @@
 5. Return as Teacher to show a result report and CSV action; as Admin show summary counts and account administration.
 6. Mention that public signup is Student-only and server authorization protects Teacher/Admin APIs.
 
-Use only records and credentials created for the demonstration. Do not imply that a simulated usability study represents student research. Browser evidence currently covers Microsoft Edge 157 with stubbed API responses; it is not a live browser integration demonstration.
+Use only records and credentials created for the demonstration. Do not imply that a simulated usability study represents student research. Browser evidence covers Playwright Chromium, Firefox, WebKit and Microsoft Edge with stubbed API responses; it is not a live browser integration demonstration. WebKit does not establish Safari compatibility.
 
 ## Reproducible checks
 
@@ -26,6 +26,7 @@ cd backend
 mvn -B verify '-Dspring-boot.repackage.skip=true'
 cd ..\frontend
 npm ci
+npx playwright install chromium firefox webkit
 npm run build
 npm run test:browser
 ```
@@ -35,7 +36,7 @@ The backend `verify` run enforces a 70% JaCoCo line-coverage floor and executes 
 ## Evidence limitations for the demonstration
 
 - The five-person usability table is explicitly simulated; recruit real students and fill in `NFR05_REAL_STUDY_TEMPLATE.md` for actual evidence.
-- Only Microsoft Edge 157 automated browser tests were run; Chrome, Firefox, Safari and manual screen/device testing were not performed.
+- Automated browser tests passed in Playwright Chromium 159.0.8154.6, Firefox 159.0, WebKit 27.2 and Microsoft Edge 157.0.4341.60 with API stubs. The system Chrome channel, Safari, and manual screen/device testing were not performed.
 - Axe checks covered sign-in and Student dashboard only. Keyboard-only, contrast measurement, screen-reader checks and full WCAG 2.1 AA audit remain outstanding.
-- A real encrypted backup/isolated restore drill, off-site backup and measured recovery-time test were not completed in this run.
+- An isolated encrypted backup/restore drill passed in approximately 4.8 seconds with schema, Flyway version and user-count checks. Off-site backup was not tested, and full-system recovery time was not measured.
 - A demonstration video is recorded in prior commit `df1a448`; its playback and contents were not rechecked during this pass. These test records do not constitute faculty acceptance or production deployment validation.

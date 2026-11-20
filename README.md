@@ -58,7 +58,7 @@ Restart the API after changing these settings. The accounts are created once wit
 
 ### Encrypted database backups
 
-Set `BACKUP_AGE_RECIPIENT` in `.env` to an `age` public key and run `docker compose --profile backup up -d --build`. The backup service takes an encrypted PostgreSQL custom-format dump immediately, then schedules subsequent dumps no more than 24 hours apart, keeping 30 days by default. Backups are stored in the Docker `backup_data` volume. Copy them to an independent, access-controlled storage location for protection from host or volume loss. Create and protect the corresponding age identity separately; never commit it. See [`ops/backup/README.md`](ops/backup/README.md) for restore steps. A restore drill has not yet been executed for this submission, so the 4-hour RTO is not verified.
+Set `BACKUP_AGE_RECIPIENT` in `.env` to an `age` public key and run `docker compose --profile backup up -d --build`. The backup service takes an encrypted PostgreSQL custom-format dump immediately, then schedules subsequent dumps no more than 24 hours apart, keeping 30 days by default. Backups are stored in the Docker `backup_data` volume. Copy them to an independent, access-controlled storage location for protection from host or volume loss. Create and protect the corresponding age identity separately; never commit it. See [`ops/backup/README.md`](ops/backup/README.md) for restore steps. An isolated local restore drill passed (13 public tables, Flyway v2 and matching user count); its approximately 4.8-second drill duration does not establish full-system four-hour RTO. Off-site storage remains unconfigured.
 
 ## Local development
 
@@ -66,7 +66,7 @@ Set `BACKUP_AGE_RECIPIENT` in `.env` to an `age` public key and run `docker comp
 - Frontend: install Node.js 22, then run `npm ci`, `npm run dev` from `frontend/`.
 - Backend checks and coverage: run `mvn verify` from `backend/`. The JaCoCo HTML report is generated under `backend/target/site/jacoco/`.
 - Frontend production build: run `npm ci` and `npm run build` from `frontend/`.
-- Browser and accessibility checks: run `npm ci` and `npm run test:browser` from `frontend/`. Playwright uses Microsoft Edge; install/configure the browser channel before running it on a new machine. The suite uses API stubs for UI checks and is not an end-to-end live API test.
+- Browser and accessibility checks: run `npm ci`, `npx playwright install chromium firefox webkit`, then `npm run test:browser` from `frontend/`. The Edge project also requires Microsoft Edge installed on the host. The suite uses API stubs for UI checks and is not an end-to-end live API test.
 
 CI runs the backend Maven verification and frontend production build on pushes and pull requests. Database migrations are applied by Flyway at API startup; Hibernate validates the schema rather than creating tables automatically.
 
@@ -80,7 +80,7 @@ The current code includes student registration and login, token-based sessions, 
 - Frontend: Vite production build passed against the modified authentication screens. No standalone frontend test runner is configured.
 - Backend role checks verify that a Student cannot invoke teacher or Admin controller methods. Signup, hashed password handling, duplicate handling, seeding and bearer authentication have focused tests.
 - An isolated PostgreSQL 15/Redis 7 smoke test verified signup and login, proper duplicate/weak-password statuses, BCrypt hashes, role denials, Admin/Teacher access and idempotent demo seeding after API restart. The full API/web Docker image build was not completed because Docker base-image downloads were very slow; the Vite production build and host API integration passed.
-- The usability report is simulated only; no student participants were recruited. Automated browser evidence is limited to Edge 157 and the pages listed in `docs/NFR06_BROWSER_COMPATIBILITY.md`; no Chrome/Firefox/Safari or manual cross-browser tests are claimed. Axe scans are limited to sign-in and the Student dashboard; manual keyboard, contrast and screen-reader audits remain pending. The isolated backup restore drill was not completed in this verification; off-site storage is deployment configuration.
+- The usability report is simulated only; no student participants were recruited. Automated browser evidence covers Chromium, Firefox, WebKit and Edge at the versions listed in `docs/NFR06_BROWSER_COMPATIBILITY.md`; the separate stable Chrome channel and Safari were not tested. Axe scans cover sign-in and the Student dashboard; manual keyboard, contrast and screen-reader audits remain pending. An isolated encrypted backup/restore drill passed; off-site storage is deployment configuration, and the local drill duration is not a full-system RTO measurement.
 
 See [`docs/UPDATED_TEST_CASES.md`](docs/UPDATED_TEST_CASES.md), the [faculty demonstration guide](docs/FACULTY_DEMONSTRATION_GUIDE.md), and the reports in [`docs/`](docs/) for test evidence and pending validation. Reports distinguish passing checks from work that has not been executed.
 
