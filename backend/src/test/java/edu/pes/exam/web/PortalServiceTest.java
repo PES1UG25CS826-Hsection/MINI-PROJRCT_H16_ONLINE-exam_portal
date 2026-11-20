@@ -123,6 +123,7 @@ class PortalServiceTest {
         Map<String, Object> attempt = attemptRow("IN_PROGRESS");
         Map<String, Object> question = questionRow(null);
         Map<String, Object> persisted = resultRow("SUBMITTED", false);
+        persisted.put("score", new BigDecimal("0.00"));
         when(jdbc.queryForList(anyString(), any(Object[].class))).thenAnswer(invocation -> {
             String sql = invocation.getArgument(0);
             if (sql.contains("FOR UPDATE OF a")) return List.of(attempt);
