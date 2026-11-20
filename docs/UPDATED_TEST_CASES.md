@@ -21,6 +21,7 @@
 | SYS-ADMIN-01 | Administration | Admin summary and account creation are restricted to administrators. | Not executed against PostgreSQL |
 | SYS-ADMIN-02 | Account lifecycle | Admin edits, deactivates/reactivates, and deletes accounts under relationship constraints. | Lifecycle endpoints not implemented |
 | SYS-REPORT-01 | Reports | Teacher can retrieve exam metrics and download a CSV. | Not executed against PostgreSQL |
+| SYS-NFR-03 | Availability | Record readiness probes through a complete monthly period and verify >=99.5% availability with no missing expected samples. | No deployment URL or historical logs are available; monthly requirement is unverified. A waiver request is documented in `NFR-03_DEVIATION.md`; short-window probes cannot pass this monthly case. |
 | SYS-NFR-05 | First-use usability | Five first-time students complete login-to-start; record completion times and failures. | Participant study not run |
 | SYS-NFR-06 | Browser/viewport | Run student flow on latest two Chrome, Firefox, Edge, Safari versions at 360px and desktop widths. | Browser matrix not run |
 | SYS-NFR-09 | Backup/restore | Confirm encrypted backup runs within 24 hours and time an isolated restore drill. | Scripts added; Docker-backed drill not run |

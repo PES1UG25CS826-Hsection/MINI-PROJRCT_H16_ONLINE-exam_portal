@@ -62,6 +62,7 @@ The current code includes student registration and login, token-based sessions, 
 - Backend: Maven `verify` completed; 5 scoring unit tests passed, 0 failed.
 - Frontend: Vite production build completed successfully.
 - System validation: not run. Docker was unavailable in the build environment, so PostgreSQL/Redis-backed workflows were not exercised end-to-end.
+- NFR-03 monthly availability: not verified. No deployment URL, historical logs, or complete month of probe records are available. The proposed deviation is documented in [`docs/NFR-03_DEVIATION.md`](docs/NFR-03_DEVIATION.md); it requires instructor/project-owner approval and does not claim the 99.5% target was met.
 - Backend line coverage: 1.9%; branch coverage: 2.8%. The Test Plan target of 70% is not met. Current tests cover only the scoring service.
 - The group and question-bank workflows are implemented in code but have not yet been validated end-to-end. Scheduling/timer edge cases, security tests, accessibility checks, and load/recovery targets also require further evidence.
 - The automated encrypted backup profile and restore procedure are documented, but no timed restore drill or external backup copy has been verified.
