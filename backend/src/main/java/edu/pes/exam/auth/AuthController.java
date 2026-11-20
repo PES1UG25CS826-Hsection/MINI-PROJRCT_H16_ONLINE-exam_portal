@@ -14,6 +14,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -43,20 +44,22 @@ public class AuthController {
     public record LoginRequest(@Email @NotBlank String email, @NotBlank String password) { }
 
     @PostMapping("/register")
-    public Map<String, Object> register(@Valid @RequestBody RegisterRequest request, HttpServletRequest http) {
+    public ResponseEntity<Map<String, Object>> register(@Valid @RequestBody RegisterRequest request, HttpServletRequest http) {
         if (!PASSWORD.matcher(request.password()).matches()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "Password must be at least 8 characters and include an uppercase letter, a number, and a symbol.");
         }
         String email = request.email().trim().toLowerCase(Locale.ROOT);
-        if (jdbc.queryForObject("SELECT COUNT(*) FROM users WHERE email=?", Integer.class, email) > 0) {
+        UUID id = UUID.randomUUID();
+        int inserted = jdbc.update("INSERT INTO users(id,email,password_hash,full_name,role) VALUES (?,?,?,?, 'STUDENT') ON CONFLICT (email) DO NOTHING",
+                id, email, passwords.encode(request.password()), request.fullName().trim());
+        if (inserted == 0) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "An account with this email already exists.");
         }
-        UUID id = UUID.randomUUID();
-        jdbc.update("INSERT INTO users(id,email,password_hash,full_name,role) VALUES (?,?,?,?, 'STUDENT')",
-                id, email, passwords.encode(request.password()), request.fullName().trim());
         audit(id, "REGISTER", "USER", id.toString(), http.getRemoteAddr());
-        return session(id, email, "STUDENT");
+        return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
+                "message", "Registration successful. Sign in with your new account.",
+                "user", Map.of("id", id, "email", email, "role", "STUDENT")));
     }
 
     @PostMapping("/login")
