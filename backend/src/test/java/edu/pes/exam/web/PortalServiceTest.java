@@ -42,7 +42,7 @@ class PortalServiceTest {
     @BeforeEach
     void useFixedDatabaseTime() {
         now = OffsetDateTime.of(2026, 11, 20, 12, 0, 0, 0, ZoneOffset.UTC);
-        when(jdbc.queryForObject("SELECT now()", OffsetDateTime.class)).thenReturn(now);
+        when(jdbc.queryForObject("SELECT now()", OffsetDateTime.class)).thenAnswer(invocation -> now);
     }
 
     @Test
@@ -116,6 +116,26 @@ class PortalServiceTest {
         assertEquals(Boolean.TRUE, result.get("saved"));
         verify(jdbc).update(contains("INSERT INTO attempt_answers"), eq(attemptId), eq(questionId),
                 eq("{\"choice\":\"A\"}"), eq(true));
+    }
+
+    @Test
+    void answerIsAcceptedAtTenSecondGraceBoundaryAndRejectedAfterward() {
+        OffsetDateTime deadline = now;
+        Map<String, Object> attempt = attemptRow("IN_PROGRESS");
+        attempt.put("started_at", deadline.minusMinutes(60));
+        when(jdbc.queryForList(startsWith("SELECT a.id,a.exam_id,a.student_id"), any(Object[].class)))
+                .thenReturn(List.of(attempt));
+        when(jdbc.queryForObject(startsWith("SELECT count(*) FROM exam_questions"), eq(Integer.class), any(Object[].class)))
+                .thenReturn(1);
+        var request = new PortalService.AnswerRequest("A", false);
+
+        now = deadline.plusSeconds(10);
+        assertEquals(Boolean.TRUE, service.saveAnswer(studentId, attemptId, questionId, request).get("saved"));
+
+        now = deadline.plusSeconds(11);
+        ResponseStatusException error = assertThrows(ResponseStatusException.class,
+                () -> service.saveAnswer(studentId, attemptId, questionId, request));
+        assertEquals(HttpStatus.CONFLICT, error.getStatusCode());
     }
 
     @Test
