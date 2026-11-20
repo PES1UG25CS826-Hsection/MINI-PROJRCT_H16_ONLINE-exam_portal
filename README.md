@@ -81,6 +81,7 @@ The current code includes student registration and login, token-based sessions, 
 - Backend on the local authentication worktree: Maven `verify` passed with 72 tests, 0 failures/errors/skips. PostgreSQL 15 Testcontainers migration/persistence tests ran. JaCoCo reported 72.00% line and 50.71% branch coverage; the 70% line gate passed. Boot jar repackaging was skipped because Windows temporarily held the artifact open.
 - Frontend: Vite production build passed against the modified authentication screens. No standalone frontend test runner is configured.
 - Backend role checks verify that a Student cannot invoke teacher or Admin controller methods. Signup, hashed password handling, duplicate handling, seeding and bearer authentication have focused tests.
+- The existing PR #62 CI run passed 83 backend tests and the frontend build before the final 30-minute idle-session fix. That fix adds focused Redis session expiry/revocation tests; its CI rerun is still required before merge.
 - An isolated PostgreSQL 15/Redis 7 smoke test verified signup and login, proper duplicate/weak-password statuses, BCrypt hashes, role denials, Admin/Teacher access and idempotent demo seeding after API restart. The full API/web Docker image build was not completed because Docker base-image downloads were very slow; the Vite production build and host API integration passed.
 - The usability report is simulated only; no student participants were recruited. Automated browser evidence is limited to Edge 157 and the pages listed in `docs/NFR06_BROWSER_COMPATIBILITY.md`; no Chrome/Firefox/Safari or manual cross-browser tests are claimed. Axe scans are limited to sign-in and the Student dashboard; manual keyboard, contrast and screen-reader audits remain pending. The isolated backup restore drill was not completed in this verification; off-site storage is deployment configuration.
 
@@ -102,7 +103,7 @@ See [`docs/DEVIATIONS.md`](docs/DEVIATIONS.md) for known scope and evidence gaps
 
 ## Student workflow API
 
-- `POST /api/auth/register` creates a student account; `POST /api/auth/login` returns a 12-hour bearer token.
+- `POST /api/auth/register` creates a student account; `POST /api/auth/login` returns a bearer token that expires after 30 minutes of inactivity, with a 12-hour absolute maximum lifetime.
 - `GET /api/student/exams` returns assigned, published assessments in `upcoming`, `available`, and `completed` groups.
 - `POST /api/exams/{examId}/attempts` starts or resumes the student's in-progress attempt. Eligibility and attempt limits are checked on the server.
 - `GET /api/attempts/{attemptId}` returns a server-timed attempt, saved answers, and question options without answer keys.

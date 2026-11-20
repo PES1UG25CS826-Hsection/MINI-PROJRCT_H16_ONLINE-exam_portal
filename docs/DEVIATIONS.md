@@ -1,6 +1,6 @@
 # Requirements Deviations and Validation Gaps
 
-**Review date:** 2026-11-19
+**Review date:** 2026-11-20
 
 | Requirement / document | Current status | Gap or deviation | Evidence / next action |
 |---|---|---|---|
@@ -9,9 +9,11 @@
 | FR-09 student-group assignment | Implemented in code; not end-to-end validated | Group/membership and exam-group schema, APIs, UI, and student list/start eligibility checks are present. | Run the group-membership acceptance tests against PostgreSQL 15 and add coverage. |
 | FR-12 authoritative timer/auto-submit | Partial | The browser shows a timer and submits on expiry; server-side deadline enforcement and close/reconnect auto-submit are not validated. | Enforce attempt deadline on every write/submit and add integration tests. |
 | FR-05 full admin account management | Partial | Admin summary and account creation exist; edit/deactivate/delete flows are incomplete. | Complete guarded lifecycle operations and audit events. |
+| NFR-03 monthly availability >=99.5% | Not verified; no qualifying deployment records | No deployment URL or historical monitoring records are available, and a full monthly period cannot be measured before submission. A short staging run cannot establish the monthly target. | See [`NFR-03_DEVIATION.md`](NFR-03_DEVIATION.md). Ask the instructor/project owner to approve a written scope deviation; until approval, keep issue #45 open and report the target as not verified. |
 | NFR-05 five-person usability test | Not run | No first-time participant timings are available. | Run with at least five students and record each outcome; do not infer success from developer use. |
 | NFR-06 browser matrix | Not run | Latest-two browser versions and 360px use were not tested across Chrome, Firefox, Edge, and Safari. | Run and record browser/viewport matrix. |
-| NFR-08 >=70% unit coverage | Not met | Current backend line coverage is 1.9%; branch coverage is 2.8%. | Expand meaningful tests; report generated JaCoCo totals. |
+| NFR-08 >=70% unit coverage | Line target met in the documented verification run; branch coverage is 50.71% | The report records 72.00% line coverage (306/425) and 50.71% branch coverage (143/282). The 70% line gate is enforced in Maven `verify`. The existing PR #62 CI run passed before the latest idle-expiry fix; CI must rerun on the final commit. Coverage is not a claim that every requirement or scenario is tested. | See [`CODE_COVERAGE_REPORT.md`](CODE_COVERAGE_REPORT.md) and [`BRANCH_COVERAGE_REPORT.md`](BRANCH_COVERAGE_REPORT.md). |
+| SR-04 30-minute idle session expiry | Implemented on this branch; validation pending | Authentication sessions expire after 30 minutes without authenticated activity, refresh on use, and are removed on logout. A 12-hour absolute token lifetime remains as an upper bound. | Token service tests cover issuance TTL, idle expiry, TTL refresh, logout revocation, and replay rejection; CI must pass on the final commit. |
 | NFR-09 daily backup / restore | Implementation added; operational evidence pending | Backup profile is opt-in and stores encrypted dumps in a Docker volume. No timed restore drill or off-host copy is verified. | Configure the age recipient, enable the profile, copy backups off-host, run restore test, record actual RPO/RTO. |
 | NFR-10 WCAG 2.1 AA | Partial, not audited | Skip link, keyboard focus styling, form labels, and responsive layout are present; no automated scan or full contrast/keyboard audit was run. | Run axe/WAVE plus manual keyboard and contrast review on student flows. |
 | Part 3 system validation | Not run | Docker/PostgreSQL/Redis were unavailable in the execution environment. | Start services and execute all system test cases; update the report with actual evidence. |
