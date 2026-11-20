@@ -38,4 +38,4 @@ The backend `verify` run enforces a 70% JaCoCo line-coverage floor and executes 
 - Only Microsoft Edge 157 automated browser tests were run; Chrome, Firefox, Safari and manual screen/device testing were not performed.
 - Axe checks covered sign-in and Student dashboard only. Keyboard-only, contrast measurement, screen-reader checks and full WCAG 2.1 AA audit remain outstanding.
 - A real encrypted backup/isolated restore drill, off-site backup and measured recovery-time test were not completed in this run.
-- These test records do not constitute faculty acceptance or production deployment validation.
+- A demonstration video is recorded in prior commit `df1a448`; its playback and contents were not rechecked during this pass. These test records do not constitute faculty acceptance or production deployment validation.
